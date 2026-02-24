@@ -10,13 +10,12 @@ import os
 
 router = APIRouter()
 
-@router.post("/auth/login", response_model=Token, tags=["Authentication"])
-async def login(login_data: LoginRequest):
-    """Universal login for all user types (admin, parent, driver)"""
+@router.post("/auth/admin/login", response_model=Token, tags=["Authentication"])
+async def admin_login(login_data: LoginRequest):
+    """Login for Admin users"""
     try:
-        # Check admins table
-        admin_query = "SELECT admin_id, phone, password_hash, name FROM admins WHERE phone = %s AND status = 'ACTIVE'"
-        admin = execute_query(admin_query, (login_data.phone,), fetch_one=True)
+        query = "SELECT admin_id, phone, password_hash, name FROM admins WHERE phone = %s AND status = 'ACTIVE'"
+        admin = execute_query(query, (login_data.phone,), fetch_one=True)
         
         if admin and admin['password_hash'] == login_data.password:
             # Update last login
@@ -28,9 +27,16 @@ async def login(login_data: LoginRequest):
             )
             return {"access_token": access_token, "token_type": "bearer"}
         
-        # Check parents table
-        parent_query = "SELECT parent_id, phone, password_hash, name FROM parents WHERE phone = %s AND parents_active_status = 'ACTIVE'"
-        parent = execute_query(parent_query, (login_data.phone,), fetch_one=True)
+        raise HTTPException(status_code=401, detail="Invalid admin credentials or account inactive")
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Admin login failed: {str(e)}")
+
+@router.post("/auth/parent/login", response_model=Token, tags=["Authentication"])
+async def parent_login(login_data: LoginRequest):
+    """Login for Parent users"""
+    try:
+        query = "SELECT parent_id, phone, password_hash, name FROM parents WHERE phone = %s AND parents_active_status = 'ACTIVE'"
+        parent = execute_query(query, (login_data.phone,), fetch_one=True)
         
         if parent and parent['password_hash'] == login_data.password:
             # Update last login
@@ -42,25 +48,30 @@ async def login(login_data: LoginRequest):
             )
             return {"access_token": access_token, "token_type": "bearer"}
         
-        # Check drivers table
-        driver_query = "SELECT driver_id, phone, password_hash, name FROM drivers WHERE phone = %s AND status = 'ACTIVE'"
-        driver = execute_query(driver_query, (login_data.phone,), fetch_one=True)
+        raise HTTPException(status_code=401, detail="Invalid parent credentials or account inactive")
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Parent login failed: {str(e)}")
+
+@router.post("/auth/driver/login", response_model=Token, tags=["Authentication"])
+async def driver_login(login_data: LoginRequest):
+    """Login for Driver users"""
+    try:
+        query = "SELECT driver_id, phone, password_hash, name FROM drivers WHERE phone = %s AND status = 'ACTIVE'"
+        driver = execute_query(query, (login_data.phone,), fetch_one=True)
         
         if driver and driver['password_hash'] == login_data.password:
+            # Update last login
+            execute_query("UPDATE drivers SET updated_at = CURRENT_TIMESTAMP WHERE driver_id = %s", 
+                         (driver['driver_id'],))
+            
             access_token = create_access_token(
                 data={"sub": driver['driver_id'], "user_type": "driver", "phone": driver['phone']}
             )
             return {"access_token": access_token, "token_type": "bearer"}
         
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Invalid phone number or password"
-        )
-        
+        raise HTTPException(status_code=401, detail="Invalid driver credentials or account inactive")
     except Exception as e:
-        import traceback
-        print(traceback.format_exc())
-        raise HTTPException(status_code=500, detail=f"Login failed: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Driver login failed: {str(e)}")
 
 @router.get("/notifications/status", tags=["Notifications"])
 async def get_status():
