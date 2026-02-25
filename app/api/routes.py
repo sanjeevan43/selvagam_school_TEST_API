@@ -181,6 +181,15 @@ async def reset_admin_password(admin_id: str, reset_data: PasswordReset):
         raise HTTPException(status_code=404, detail="Admin not found")
     return {"message": "Admin password reset successfully"}
 
+@router.patch("/admins/reset-password-by-phone", tags=["Admins"])
+async def reset_admin_password_by_phone(reset_data: PasswordResetByPhone):
+    """Reset Admin password using phone number (No old password required)"""
+    query = "UPDATE admins SET password_hash = %s, updated_at = CURRENT_TIMESTAMP WHERE phone = %s"
+    result = execute_query(query, (reset_data.new_password, reset_data.phone))
+    if result == 0:
+        raise HTTPException(status_code=404, detail="Admin with this phone number not found")
+    return {"message": "Admin password reset successfully"}
+
 # =====================================================
 # PARENT ENDPOINTS
 # =====================================================
@@ -333,6 +342,15 @@ async def reset_parent_password(parent_id: str, reset_data: PasswordReset):
     result = execute_query(query, (reset_data.new_password, parent_id))
     if result == 0:
         raise HTTPException(status_code=404, detail="Parent not found")
+    return {"message": "Parent password reset successfully"}
+
+@router.patch("/parents/reset-password-by-phone", tags=["Parents"])
+async def reset_parent_password_by_phone(reset_data: PasswordResetByPhone):
+    """Reset Parent password using phone number (No old password required)"""
+    query = "UPDATE parents SET password_hash = %s, updated_at = CURRENT_TIMESTAMP WHERE phone = %s"
+    result = execute_query(query, (reset_data.new_password, reset_data.phone))
+    if result == 0:
+        raise HTTPException(status_code=404, detail="Parent with this phone number not found")
     return {"message": "Parent password reset successfully"}
 
 @router.get("/parents/{parent_id}/students", response_model=List[StudentResponse], tags=["Parents"])
@@ -587,6 +605,15 @@ async def reset_driver_password(driver_id: str, reset_data: PasswordReset):
     result = execute_query(query, (reset_data.new_password, driver_id))
     if result == 0:
         raise HTTPException(status_code=404, detail="Driver not found")
+    return {"message": "Driver password reset successfully"}
+
+@router.patch("/drivers/reset-password-by-phone", tags=["Drivers"])
+async def reset_driver_password_by_phone(reset_data: PasswordResetByPhone):
+    """Reset Driver password using phone number (No old password required)"""
+    query = "UPDATE drivers SET password_hash = %s, updated_at = CURRENT_TIMESTAMP WHERE phone = %s"
+    result = execute_query(query, (reset_data.new_password, reset_data.phone))
+    if result == 0:
+        raise HTTPException(status_code=404, detail="Driver with this phone number not found")
     return {"message": "Driver password reset successfully"}
 
 @router.post("/uploads/driver/{driver_id}/photo", tags=["Drivers"])

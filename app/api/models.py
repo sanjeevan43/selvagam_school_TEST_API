@@ -652,6 +652,15 @@ class TripStatusUpdate(BaseModel):
 class PasswordReset(BaseModel):
     new_password: str = Field(..., min_length=1, max_length=72, description="New user password")
 
+class PasswordResetByPhone(BaseModel):
+    phone: int = Field(..., description="User phone number")
+    new_password: str = Field(..., min_length=1, max_length=72, description="New user password")
+
+    @field_validator('phone')
+    @classmethod
+    def validate_phone(cls, v):
+        return phone_validator(v)
+
 class PasswordUpdate(BaseModel):
     new_password: str = Field(..., min_length=1, max_length=72, description="New user password")
     old_password: Optional[str] = Field(None, description="Current user password")
