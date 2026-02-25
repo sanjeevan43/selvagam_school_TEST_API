@@ -171,6 +171,15 @@ async def patch_admin_password(admin_id: str, password_data: PasswordUpdate):
     if result == 0:
         raise HTTPException(status_code=404, detail="Admin not found")
     return {"message": "Password updated successfully"}
+    
+@router.patch("/admins/{admin_id}/reset-password", tags=["Admins"])
+async def reset_admin_password(admin_id: str, reset_data: PasswordReset):
+    """Admin Reset: Overwrite password using ID (No old password required)"""
+    query = "UPDATE admins SET password_hash = %s, updated_at = CURRENT_TIMESTAMP WHERE admin_id = %s"
+    result = execute_query(query, (reset_data.new_password, admin_id))
+    if result == 0:
+        raise HTTPException(status_code=404, detail="Admin not found")
+    return {"message": "Admin password reset successfully"}
 
 # =====================================================
 # PARENT ENDPOINTS
@@ -316,6 +325,15 @@ async def patch_parent_password(parent_id: str, password_data: PasswordUpdate):
     if result == 0:
         raise HTTPException(status_code=404, detail="Parent not found")
     return {"message": "Password updated successfully"}
+
+@router.patch("/parents/{parent_id}/reset-password", tags=["Parents"])
+async def reset_parent_password(parent_id: str, reset_data: PasswordReset):
+    """Admin Reset: Overwrite parent password using ID (No old password required)"""
+    query = "UPDATE parents SET password_hash = %s, updated_at = CURRENT_TIMESTAMP WHERE parent_id = %s"
+    result = execute_query(query, (reset_data.new_password, parent_id))
+    if result == 0:
+        raise HTTPException(status_code=404, detail="Parent not found")
+    return {"message": "Parent password reset successfully"}
 
 @router.get("/parents/{parent_id}/students", response_model=List[StudentResponse], tags=["Parents"])
 async def get_parent_students(parent_id: str):
@@ -561,6 +579,15 @@ async def patch_driver_password(driver_id: str, password_data: PasswordUpdate):
     if result == 0:
         raise HTTPException(status_code=404, detail="Driver not found")
     return {"message": "Password updated successfully"}
+
+@router.patch("/drivers/{driver_id}/reset-password", tags=["Drivers"])
+async def reset_driver_password(driver_id: str, reset_data: PasswordReset):
+    """Admin Reset: Overwrite driver password using ID (No old password required)"""
+    query = "UPDATE drivers SET password_hash = %s, updated_at = CURRENT_TIMESTAMP WHERE driver_id = %s"
+    result = execute_query(query, (reset_data.new_password, driver_id))
+    if result == 0:
+        raise HTTPException(status_code=404, detail="Driver not found")
+    return {"message": "Driver password reset successfully"}
 
 @router.post("/uploads/driver/{driver_id}/photo", tags=["Drivers"])
 async def upload_driver_photo(driver_id: str, file: UploadFile = File(...)):

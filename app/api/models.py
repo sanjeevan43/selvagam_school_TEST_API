@@ -649,6 +649,9 @@ class CombinedStatusUpdate(BaseModel):
 
 class TripStatusUpdate(BaseModel):
     status: TripStatus = Field(..., description="New trip status value")
+class PasswordReset(BaseModel):
+    new_password: str = Field(..., min_length=1, max_length=72, description="New user password")
+
 class PasswordUpdate(BaseModel):
     new_password: str = Field(..., min_length=1, max_length=72, description="New user password")
     old_password: Optional[str] = Field(None, description="Current user password")
