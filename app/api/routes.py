@@ -10,7 +10,6 @@ import re
 from app.core.database import get_db, execute_query
 from app.api.models import *
 from app.core.auth import create_access_token
-from app.core.encryption import encrypt_data, decrypt_data
 from app.services.bus_tracking import bus_tracking_service
 from app.notification_api.service import notification_service
 from app.services.cascade_updates import cascade_service
@@ -2062,37 +2061,6 @@ async def delete_error_log(error_id: str):
         raise HTTPException(status_code=404, detail="Error log not found")
     return {"message": "Error log deleted successfully"}
 
-# =====================================================
-# ENCRYPTION ENDPOINTS
-# =====================================================
-
-@router.post("/encrypt", tags=["Encryption"])
-async def encrypt_text(data: dict):
-    """Encrypt text data"""
-    try:
-        text = data.get("text", "")
-        if not text:
-            raise HTTPException(status_code=400, detail="Text field is required")
-        
-        encrypted = encrypt_data(text)
-        return {"encrypted_text": encrypted}
-    except Exception as e:
-        logger.error(f"Encryption error: {e}")
-        raise HTTPException(status_code=500, detail="Encryption failed")
-
-@router.post("/decrypt", tags=["Encryption"])
-async def decrypt_text(data: dict):
-    """Decrypt text data"""
-    try:
-        encrypted_text = data.get("encrypted_text", "")
-        if not encrypted_text:
-            raise HTTPException(status_code=400, detail="encrypted_text field is required")
-        
-        decrypted = decrypt_data(encrypted_text)
-        return {"decrypted_text": decrypted}
-    except Exception as e:
-        logger.error(f"Decryption error: {e}")
-        raise HTTPException(status_code=500, detail="Decryption failed")
 
 # =====================================================
 # UTILITY ENDPOINTS
