@@ -565,9 +565,9 @@ async def patch_driver_password(driver_id: str, password_data: PasswordUpdate):
 
 @router.post("/uploads/driver/{driver_id}/photo", tags=["Drivers"])
 async def upload_driver_photo(driver_id: str, file: UploadFile = File(...)):
-    """Upload driver photo"""
-    # Verify driver exists
-    driver = execute_query("SELECT driver_id FROM drivers WHERE driver_id = %s", (driver_id,), fetch_one=True)
+    """Upload/Update driver photo and delete old one if exists"""
+    # Verify driver and get old photo
+    driver = execute_query("SELECT driver_id, photo_url FROM drivers WHERE driver_id = %s", (driver_id,), fetch_one=True)
     if not driver:
         raise HTTPException(status_code=404, detail="Driver not found")
         
@@ -575,17 +575,20 @@ async def upload_driver_photo(driver_id: str, file: UploadFile = File(...)):
     if not file.content_type.startswith("image/"):
         raise HTTPException(status_code=400, detail="Only image files are allowed")
 
-    # Save file
+    # Save new file
     file_url = await upload_service.save_file(file, "drivers", custom_filename=driver_id)
     
     # Update database
-    # Check if photo column exists first, or just try to update (assuming it exists based on requirements)
     try:
         query = "UPDATE drivers SET photo_url = %s, updated_at = CURRENT_TIMESTAMP WHERE driver_id = %s"
         execute_query(query, (file_url, driver_id))
+        
+        # Delete old file from storage if it's different
+        if driver.get('photo_url') and driver['photo_url'] != file_url:
+            upload_service.delete_file_by_url(driver['photo_url'])
+            
     except Exception as e:
         logger.error(f"Failed to update driver photo URL: {e}")
-        # Even if DB update fails, we return the URL if the file was saved
         
     return {"url": file_url}
 
@@ -1075,35 +1078,35 @@ async def patch_bus_documents(bus_id: str, documents: dict):
 
 @router.post("/uploads/bus/{bus_id}/rc-book", tags=["Buses"])
 async def upload_bus_rc_book(bus_id: str, file: UploadFile = File(...)):
-    """Upload bus RC Book"""
-    # Verify bus exists
-    bus = execute_query("SELECT bus_id FROM buses WHERE bus_id = %s", (bus_id,), fetch_one=True)
+    """Upload bus RC Book and clean up old one"""
+    bus = execute_query("SELECT bus_id, rc_book_url FROM buses WHERE bus_id = %s", (bus_id,), fetch_one=True)
     if not bus:
         raise HTTPException(status_code=404, detail="Bus not found")
         
-    # Save file
     file_url = await upload_service.save_file(file, "buses/rc_books", custom_filename=f"{bus_id}_rc")
     
-    # Update database
     query = "UPDATE buses SET rc_book_url = %s, updated_at = CURRENT_TIMESTAMP WHERE bus_id = %s"
     execute_query(query, (file_url, bus_id))
+
+    if bus.get('rc_book_url') and bus['rc_book_url'] != file_url:
+        upload_service.delete_file_by_url(bus['rc_book_url'])
         
     return {"url": file_url}
 
 @router.post("/uploads/bus/{bus_id}/fc-certificate", tags=["Buses"])
 async def upload_bus_fc_certificate(bus_id: str, file: UploadFile = File(...)):
-    """Upload bus FC Certificate"""
-    # Verify bus exists
-    bus = execute_query("SELECT bus_id FROM buses WHERE bus_id = %s", (bus_id,), fetch_one=True)
+    """Upload bus FC Certificate and clean up old one"""
+    bus = execute_query("SELECT bus_id, fc_certificate_url FROM buses WHERE bus_id = %s", (bus_id,), fetch_one=True)
     if not bus:
         raise HTTPException(status_code=404, detail="Bus not found")
         
-    # Save file
     file_url = await upload_service.save_file(file, "buses/fc_certificates", custom_filename=f"{bus_id}_fc")
     
-    # Update database
     query = "UPDATE buses SET fc_certificate_url = %s, updated_at = CURRENT_TIMESTAMP WHERE bus_id = %s"
     execute_query(query, (file_url, bus_id))
+
+    if bus.get('fc_certificate_url') and bus['fc_certificate_url'] != file_url:
+        upload_service.delete_file_by_url(bus['fc_certificate_url'])
         
     return {"url": file_url}
 
@@ -1240,10 +1243,22 @@ async def get_class_fcm_tokens(class_id: str):
     AND p.parents_active_status = 'ACTIVE'
     """
     token_results = execute_query(query, (class_id,), fetch_all=True)
-    # Ensure uniqueness with a set in Python as well
     fcm_tokens = list({row['fcm_token'] for row in token_results}) if token_results else []
     
     return {"fcm_tokens": fcm_tokens}
+
+@router.get("/fcm-tokens/by-class/{class_id}", tags=["FCM Tokens"])
+async def get_fcm_tokens_by_class(class_id: str):
+    """Get all unique FCM tokens for parents and students in a specific class"""
+    query = """
+    SELECT DISTINCT f.fcm_token 
+    FROM fcm_tokens f
+    JOIN students s ON (f.student_id = s.student_id OR f.parent_id = s.parent_id OR f.parent_id = s.s_parent_id)
+    WHERE s.class_id = %s AND f.fcm_token IS NOT NULL AND f.fcm_token != ''
+    """
+    token_results = execute_query(query, (class_id,), fetch_all=True)
+    fcm_tokens = list({row['fcm_token'] for row in token_results}) if token_results else []
+    return {"fcm_tokens": fcm_tokens, "count": len(fcm_tokens)}
 
 @router.get("/students/by-class/{class_id}", response_model=List[StudentResponse], tags=["Students"])
 async def get_students_by_class(class_id: str):
@@ -1445,9 +1460,9 @@ async def patch_student_status(student_id: str, status_update: CombinedStatusUpd
 
 @router.post("/uploads/student/{student_id}/photo", tags=["Students"])
 async def upload_student_photo(student_id: str, file: UploadFile = File(...)):
-    """Upload student photo"""
-    # Verify student exists
-    student = execute_query("SELECT student_id FROM students WHERE student_id = %s", (student_id,), fetch_one=True)
+    """Upload student photo and delete old one if exists"""
+    # Verify student and get old photo
+    student = execute_query("SELECT student_id, student_photo_url FROM students WHERE student_id = %s", (student_id,), fetch_one=True)
     if not student:
         raise HTTPException(status_code=404, detail="Student not found")
         
@@ -1462,6 +1477,11 @@ async def upload_student_photo(student_id: str, file: UploadFile = File(...)):
     try:
         query = "UPDATE students SET student_photo_url = %s, updated_at = CURRENT_TIMESTAMP WHERE student_id = %s"
         execute_query(query, (file_url, student_id))
+        
+        # Cleanup storage
+        if student.get('student_photo_url') and student['student_photo_url'] != file_url:
+            upload_service.delete_file_by_url(student['student_photo_url'])
+            
     except Exception as e:
         logger.error(f"Failed to update student photo URL: {e}")
         
