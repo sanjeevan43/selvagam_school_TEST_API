@@ -1,34 +1,15 @@
-import re
+﻿import re
 from pydantic import BaseModel, EmailStr, Field, validator, ConfigDict, field_validator
 from typing import Optional, Literal
 from datetime import date, datetime
 from enum import Enum
 
 # Common Validation logic
-def password_validator(v: str) -> str:
-    if len(v) < 8:
-        raise ValueError('Password must be at least 8 characters long')
-    if not re.search(r"[A-Z]", v):
-        raise ValueError('Password must contain at least one uppercase letter')
-    if not re.search(r"[a-z]", v):
-        raise ValueError('Password must contain at least one lowercase letter')
-    if not re.search(r"\d", v):
-        raise ValueError('Password must contain at least one digit')
-    if not re.search(r"[!@#$%^&*(),.?\":{}|<>]", v):
-        raise ValueError('Password must contain at least one special character')
-    return v
-
 def phone_validator(v: int) -> int:
     if v is not None:
         v_str = str(v)
         if not re.match(r"^\d{10}$", v_str):
             raise ValueError('Phone number must be exactly 10 digits')
-    return v
-
-def name_validator(v: str) -> str:
-    if v is not None:
-        if not re.match(r"^[a-zA-Z\s\.\-']{2,100}$", v):
-            raise ValueError('Name must be 2-100 characters and contain only letters, spaces, dots, hyphens or apostrophes')
     return v
 
 # Enums
@@ -64,6 +45,7 @@ class ParentRole(str, Enum):
     FATHER = "FATHER"
     MOTHER = "MOTHER"
     GUARDIAN = "GUARDIAN"
+    ALL = "ALL"
 
 class StudentStatus(str, Enum):
     CURRENT = "CURRENT"
@@ -114,18 +96,9 @@ class AdminBase(BaseModel):
     def validate_phone(cls, v):
         return phone_validator(v)
 
-    @field_validator('name')
-    @classmethod
-    def validate_name(cls, v):
-        return name_validator(v)
 
 class AdminCreate(AdminBase):
-    password: str = Field(..., min_length=8, max_length=72)
-
-    @field_validator('password')
-    @classmethod
-    def validate_password(cls, v):
-        return password_validator(v)
+    password: str = Field(..., min_length=1, max_length=72)
 
 class AdminUpdate(BaseModel):
     phone: Optional[int] = Field(None, description="User phone number")
@@ -138,10 +111,6 @@ class AdminUpdate(BaseModel):
     def validate_phone(cls, v):
         return phone_validator(v) if v is not None else v
 
-    @field_validator('name')
-    @classmethod
-    def validate_name(cls, v):
-        return name_validator(v) if v is not None else v
 
 class AdminResponse(BaseModel):
     admin_id: str
@@ -172,18 +141,9 @@ class ParentBase(BaseModel):
     def validate_phone(cls, v):
         return phone_validator(v)
 
-    @field_validator('name')
-    @classmethod
-    def validate_name(cls, v):
-        return name_validator(v)
 
 class ParentCreate(ParentBase):
-    password: str = Field(..., min_length=8, max_length=72)  # Password required for login
-
-    @field_validator('password')
-    @classmethod
-    def validate_password(cls, v):
-        return password_validator(v)
+    password: str = Field(..., min_length=1, max_length=72)  # Password required for login
 
 class ParentUpdate(BaseModel):
     phone: Optional[int] = Field(None, description="User phone number")
@@ -202,10 +162,6 @@ class ParentUpdate(BaseModel):
     def validate_phone(cls, v):
         return phone_validator(v) if v is not None else v
 
-    @field_validator('name')
-    @classmethod
-    def validate_name(cls, v):
-        return name_validator(v) if v is not None else v
 
 class ParentResponse(BaseModel):
     parent_id: str
@@ -239,18 +195,9 @@ class DriverBase(BaseModel):
     def validate_phone(cls, v):
         return phone_validator(v)
 
-    @field_validator('name')
-    @classmethod
-    def validate_name(cls, v):
-        return name_validator(v)
 
 class DriverCreate(DriverBase):
-    password: str = Field(..., min_length=8, max_length=72)  # Password required for login
-
-    @field_validator('password')
-    @classmethod
-    def validate_password(cls, v):
-        return password_validator(v)
+    password: str = Field(..., min_length=1, max_length=72)  # Password required for login
 
 class DriverUpdate(BaseModel):
     name: Optional[str] = Field(None, max_length=100)
@@ -266,10 +213,6 @@ class DriverUpdate(BaseModel):
     def validate_phone(cls, v):
         return phone_validator(v) if v is not None else v
 
-    @field_validator('name')
-    @classmethod
-    def validate_name(cls, v):
-        return name_validator(v) if v is not None else v
 
 class DriverResponse(BaseModel):
     driver_id: str
@@ -446,11 +389,6 @@ class StudentBase(BaseModel):
     is_transport_user: bool = True
     student_status: StudentStatus = StudentStatus.CURRENT
     transport_status: TransportStatus = TransportStatus.ACTIVE
-
-    @field_validator('name')
-    @classmethod
-    def validate_name(cls, v):
-        return name_validator(v)
 
     @field_validator('emergency_contact')
     @classmethod
@@ -676,17 +614,12 @@ class NotificationRequest(BaseModel):
 # Universal login model (phone + password)
 class LoginRequest(BaseModel):
     phone: int = Field(..., description="User phone number")
-    password: str = Field(..., min_length=8, description="User password")
+    password: str = Field(..., min_length=1, description="User password")
 
     @field_validator('phone')
     @classmethod
     def validate_phone(cls, v):
         return phone_validator(v)
-
-    @field_validator('password')
-    @classmethod
-    def validate_password(cls, v):
-        return password_validator(v)
 
 class BusDriverAssign(BaseModel):
     driver_id: Optional[str] = Field(None, description="Driver ID (UUID) or null to unassign")
@@ -713,3 +646,6 @@ class CombinedStatusUpdate(BaseModel):
 
 class TripStatusUpdate(BaseModel):
     status: TripStatus = Field(..., description="New trip status value")
+class PasswordUpdate(BaseModel):
+    new_password: str = Field(..., min_length=1, max_length=72, description="New user password")
+    old_password: Optional[str] = Field(None, description="Current user password")

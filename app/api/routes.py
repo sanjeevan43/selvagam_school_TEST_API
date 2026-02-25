@@ -163,6 +163,15 @@ async def delete_admin(admin_id: str):
         raise HTTPException(status_code=404, detail="Admin not found")
     return {"message": "Admin deleted successfully"}
 
+@router.patch("/admins/{admin_id}/password", tags=["Admins"])
+async def patch_admin_password(admin_id: str, password_data: PasswordUpdate):
+    """PATCH: Update admin password"""
+    query = "UPDATE admins SET password_hash = %s, updated_at = CURRENT_TIMESTAMP WHERE admin_id = %s"
+    result = execute_query(query, (password_data.new_password, admin_id))
+    if result == 0:
+        raise HTTPException(status_code=404, detail="Admin not found")
+    return {"message": "Password updated successfully"}
+
 # =====================================================
 # PARENT ENDPOINTS
 # =====================================================
@@ -190,13 +199,56 @@ async def create_parent(parent: ParentCreate):
         raise HTTPException(status_code=400, detail=f"Failed to create parent: {str(e)}")
 
 @router.get("/parents", response_model=List[ParentResponse], tags=["Parents"])
-async def get_all_parents(active_filter: ActiveFilter = ActiveFilter.ALL):
-    """Get all parents, defaults to ALL"""
-    if active_filter == ActiveFilter.ACTIVE_ONLY:
-        query = "SELECT parent_id, phone, email, name, parent_role, door_no, street, city, district, pincode, parents_active_status, last_login_at, created_at, updated_at FROM parents WHERE parents_active_status = 'ACTIVE' ORDER BY created_at DESC"
-    else:
-        query = "SELECT parent_id, phone, email, name, parent_role, door_no, street, city, district, pincode, parents_active_status, last_login_at, created_at, updated_at FROM parents ORDER BY created_at DESC"
-    parents = execute_query(query, fetch_all=True)
+async def get_all_parents(
+    status: UserStatus = UserStatus.ALL,
+    role: ParentRole = ParentRole.ALL,
+    student_status: StudentStatus = StudentStatus.ALL,
+    transport_status: TransportStatus = TransportStatus.ALL,
+    search: Optional[str] = None
+):
+    """Get all parents with optional filters for status, role, and search (name/phone)"""
+    conditions = []
+    params = []
+    
+    if status != UserStatus.ALL:
+        conditions.append("parents_active_status = %s")
+        params.append(status.value)
+    
+    if role != ParentRole.ALL:
+        conditions.append("parent_role = %s")
+        params.append(role.value)
+
+    if student_status != StudentStatus.ALL:
+        conditions.append("""
+            EXISTS (SELECT 1 FROM students s 
+                   WHERE (s.parent_id = parents.parent_id OR s.s_parent_id = parents.parent_id) 
+                   AND s.student_status = %s)
+        """)
+        params.append(student_status.value)
+
+    if transport_status != TransportStatus.ALL:
+        conditions.append("""
+            EXISTS (SELECT 1 FROM students s 
+                   WHERE (s.parent_id = parents.parent_id OR s.s_parent_id = parents.parent_id) 
+                   AND s.transport_status = %s)
+        """)
+        params.append(transport_status.value)
+        
+    if search:
+        conditions.append("(name LIKE %s OR phone LIKE %s)")
+        search_param = f"%{search}%"
+        params.append(search_param)
+        params.append(search_param)
+        
+    where_clause = f"WHERE {' AND '.join(conditions)}" if conditions else ""
+    query = f"""
+    SELECT parent_id, phone, email, name, parent_role, door_no, street, city, district, pincode, 
+           parents_active_status, last_login_at, created_at, updated_at 
+    FROM parents {where_clause} 
+    ORDER BY created_at DESC
+    """
+    
+    parents = execute_query(query, tuple(params) if params else None, fetch_all=True)
     return parents or []
 
 
@@ -255,6 +307,22 @@ async def update_parent_status(parent_id: str, status_update: StatusUpdate):
     if result == 0:
         raise HTTPException(status_code=404, detail="Parent not found")
     return await get_parent(parent_id)
+
+@router.patch("/parents/{parent_id}/password", tags=["Parents"])
+async def patch_parent_password(parent_id: str, password_data: PasswordUpdate):
+    """PATCH: Update parent password"""
+    query = "UPDATE parents SET password_hash = %s, updated_at = CURRENT_TIMESTAMP WHERE parent_id = %s"
+    result = execute_query(query, (password_data.new_password, parent_id))
+    if result == 0:
+        raise HTTPException(status_code=404, detail="Parent not found")
+    return {"message": "Password updated successfully"}
+
+@router.get("/parents/{parent_id}/students", response_model=List[StudentResponse], tags=["Parents"])
+async def get_parent_students(parent_id: str):
+    """Get all students belonging to a parent (Primary or Secondary)"""
+    query = "SELECT * FROM students WHERE parent_id = %s OR s_parent_id = %s ORDER BY name"
+    students = execute_query(query, (parent_id, parent_id), fetch_all=True)
+    return students or []
 
 @router.put("/parents/{parent_id}/fcm-token", tags=["Parents"])
 async def update_parent_fcm_token(parent_id: str, fcm_data: dict):
@@ -484,6 +552,15 @@ async def delete_driver(driver_id: str):
     if result == 0:
         raise HTTPException(status_code=404, detail="Driver not found")
     return {"message": "Driver deleted successfully"}
+
+@router.patch("/drivers/{driver_id}/password", tags=["Drivers"])
+async def patch_driver_password(driver_id: str, password_data: PasswordUpdate):
+    """PATCH: Update driver password"""
+    query = "UPDATE drivers SET password_hash = %s, updated_at = CURRENT_TIMESTAMP WHERE driver_id = %s"
+    result = execute_query(query, (password_data.new_password, driver_id))
+    if result == 0:
+        raise HTTPException(status_code=404, detail="Driver not found")
+    return {"message": "Password updated successfully"}
 
 # =====================================================
 # ROUTE ENDPOINTS
@@ -1114,6 +1191,21 @@ async def get_students_by_class(class_id: str):
     students = execute_query(query, (class_id,), fetch_all=True)
     return students or []
 
+@router.get("/classes/{class_id}/parents", response_model=List[ParentResponse], tags=["Classes"])
+async def get_class_parents(class_id: str):
+    """Get all parents who have students in a specific class"""
+    query = """
+    SELECT DISTINCT p.parent_id, p.phone, p.email, p.name, p.parent_role, p.door_no, p.street, 
+                    p.city, p.district, p.pincode, p.parents_active_status, p.last_login_at, 
+                    p.created_at, p.updated_at 
+    FROM parents p
+    JOIN students s ON (p.parent_id = s.parent_id OR p.parent_id = s.s_parent_id)
+    WHERE s.class_id = %s
+    ORDER BY p.name
+    """
+    parents = execute_query(query, (class_id,), fetch_all=True)
+    return parents or []
+
 # =====================================================
 # STUDENT ENDPOINTS
 # =====================================================
@@ -1190,6 +1282,17 @@ async def get_all_students(
     
     return students or []
 
+
+@router.get("/students/by-route/{route_id}", response_model=List[StudentResponse], tags=["Students"])
+async def get_students_by_route(route_id: str):
+    """Get all students assigned to a specific route (pickup or drop)"""
+    query = """
+    SELECT * FROM students 
+    WHERE pickup_route_id = %s OR drop_route_id = %s
+    ORDER BY name
+    """
+    students = execute_query(query, (route_id, route_id), fetch_all=True)
+    return students or []
 
 @router.get("/students/{student_id}", response_model=StudentResponse, tags=["Students"])
 async def get_student(student_id: str):
