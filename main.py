@@ -4,6 +4,7 @@ from fastapi.responses import JSONResponse
 from fastapi.encoders import jsonable_encoder
 from app.core.config import get_settings
 import uvicorn
+import os
 import logging
 
 settings = get_settings()
@@ -50,6 +51,7 @@ app.add_middleware(
     allow_methods=["*"],  # Allow all methods
     allow_headers=["*"],  # Allow all headers
 )
+from fastapi.staticfiles import StaticFiles
 
 from app.api.routes import router as main_router
 from app.api.notification_routes import router as notification_router
@@ -57,6 +59,13 @@ from app.api.notification_routes import router as notification_router
 # Include routers
 app.include_router(main_router, prefix="/api/v1")
 app.include_router(notification_router, prefix="/api")
+
+# Create upload directory if it doesn't exist
+if not os.path.exists(settings.UPLOAD_DIR):
+    os.makedirs(settings.UPLOAD_DIR)
+
+# Mount static files
+app.mount("/uploads", StaticFiles(directory=settings.UPLOAD_DIR), name="uploads")
 
 # Root endpoint
 @app.get("/", include_in_schema=False)

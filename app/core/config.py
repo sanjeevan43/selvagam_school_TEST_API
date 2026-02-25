@@ -28,7 +28,9 @@ class Settings(BaseSettings):
     
     # Geofence Notification Configuration
     GEOFENCE_RADIUS: int = 500
-    MAIN_BACKEND_URL: str = "https://api.selvagam.com/api/v1"
+    # Upload Configuration
+    UPLOAD_DIR: str = "uploads"
+    BASE_URL: str = "https://api.selvagam.com"
     
     class Config:
         env_file = ".env"

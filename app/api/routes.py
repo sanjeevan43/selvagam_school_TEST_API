@@ -1,4 +1,4 @@
-from fastapi import APIRouter, HTTPException, status
+from fastapi import APIRouter, HTTPException, status, File, UploadFile
 from fastapi.responses import JSONResponse
 from typing import List, Optional
 from datetime import datetime, date
@@ -14,6 +14,7 @@ from app.core.encryption import encrypt_data, decrypt_data
 from app.services.bus_tracking import bus_tracking_service
 from app.notification_api.service import notification_service
 from app.services.cascade_updates import cascade_service
+from app.services.upload_service import upload_service
 
 router = APIRouter()
 logger = logging.getLogger(__name__)
@@ -562,6 +563,32 @@ async def patch_driver_password(driver_id: str, password_data: PasswordUpdate):
         raise HTTPException(status_code=404, detail="Driver not found")
     return {"message": "Password updated successfully"}
 
+@router.post("/uploads/driver/{driver_id}/photo", tags=["Drivers"])
+async def upload_driver_photo(driver_id: str, file: UploadFile = File(...)):
+    """Upload driver photo"""
+    # Verify driver exists
+    driver = execute_query("SELECT driver_id FROM drivers WHERE driver_id = %s", (driver_id,), fetch_one=True)
+    if not driver:
+        raise HTTPException(status_code=404, detail="Driver not found")
+        
+    # Only allow images
+    if not file.content_type.startswith("image/"):
+        raise HTTPException(status_code=400, detail="Only image files are allowed")
+
+    # Save file
+    file_url = await upload_service.save_file(file, "drivers", custom_filename=driver_id)
+    
+    # Update database
+    # Check if photo column exists first, or just try to update (assuming it exists based on requirements)
+    try:
+        query = "UPDATE drivers SET photo_url = %s, updated_at = CURRENT_TIMESTAMP WHERE driver_id = %s"
+        execute_query(query, (file_url, driver_id))
+    except Exception as e:
+        logger.error(f"Failed to update driver photo URL: {e}")
+        # Even if DB update fails, we return the URL if the file was saved
+        
+    return {"url": file_url}
+
 # =====================================================
 # ROUTE ENDPOINTS
 # =====================================================
@@ -1046,6 +1073,40 @@ async def patch_bus_documents(bus_id: str, documents: dict):
         raise HTTPException(status_code=404, detail="Bus not found")
     return await get_bus(bus_id)
 
+@router.post("/uploads/bus/{bus_id}/rc-book", tags=["Buses"])
+async def upload_bus_rc_book(bus_id: str, file: UploadFile = File(...)):
+    """Upload bus RC Book"""
+    # Verify bus exists
+    bus = execute_query("SELECT bus_id FROM buses WHERE bus_id = %s", (bus_id,), fetch_one=True)
+    if not bus:
+        raise HTTPException(status_code=404, detail="Bus not found")
+        
+    # Save file
+    file_url = await upload_service.save_file(file, "buses/rc_books", custom_filename=f"{bus_id}_rc")
+    
+    # Update database
+    query = "UPDATE buses SET rc_book_url = %s, updated_at = CURRENT_TIMESTAMP WHERE bus_id = %s"
+    execute_query(query, (file_url, bus_id))
+        
+    return {"url": file_url}
+
+@router.post("/uploads/bus/{bus_id}/fc-certificate", tags=["Buses"])
+async def upload_bus_fc_certificate(bus_id: str, file: UploadFile = File(...)):
+    """Upload bus FC Certificate"""
+    # Verify bus exists
+    bus = execute_query("SELECT bus_id FROM buses WHERE bus_id = %s", (bus_id,), fetch_one=True)
+    if not bus:
+        raise HTTPException(status_code=404, detail="Bus not found")
+        
+    # Save file
+    file_url = await upload_service.save_file(file, "buses/fc_certificates", custom_filename=f"{bus_id}_fc")
+    
+    # Update database
+    query = "UPDATE buses SET fc_certificate_url = %s, updated_at = CURRENT_TIMESTAMP WHERE bus_id = %s"
+    execute_query(query, (file_url, bus_id))
+        
+    return {"url": file_url}
+
 @router.get("/buses/driver/{driver_id}", response_model=BusResponse, tags=["Buses"])
 async def get_bus_by_driver(driver_id: str):
     """Get bus assigned to a specific driver"""
@@ -1381,6 +1442,30 @@ async def patch_student_status(student_id: str, status_update: CombinedStatusUpd
     cascade_service.update_student_cascades(student_id)
     
     return await get_student(student_id)
+
+@router.post("/uploads/student/{student_id}/photo", tags=["Students"])
+async def upload_student_photo(student_id: str, file: UploadFile = File(...)):
+    """Upload student photo"""
+    # Verify student exists
+    student = execute_query("SELECT student_id FROM students WHERE student_id = %s", (student_id,), fetch_one=True)
+    if not student:
+        raise HTTPException(status_code=404, detail="Student not found")
+        
+    # Only allow images
+    if not file.content_type.startswith("image/"):
+        raise HTTPException(status_code=400, detail="Only image files are allowed")
+
+    # Save file
+    file_url = await upload_service.save_file(file, "students", custom_filename=student_id)
+    
+    # Update database
+    try:
+        query = "UPDATE students SET student_photo_url = %s, updated_at = CURRENT_TIMESTAMP WHERE student_id = %s"
+        execute_query(query, (file_url, student_id))
+    except Exception as e:
+        logger.error(f"Failed to update student photo URL: {e}")
+        
+    return {"url": file_url}
 
 @router.put("/students/{student_id}/transport-status", response_model=StudentResponse, tags=["Students"])
 async def update_student_transport_status(student_id: str, status_update: TransportStatusUpdate):
