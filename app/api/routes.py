@@ -2152,6 +2152,19 @@ async def get_fcm_tokens_by_parent(parent_id: str):
     fcm_tokens = list({row['fcm_token'] for row in token_results}) if token_results else []
     return {"fcm_tokens": fcm_tokens}
 
+@router.get("/fcm-tokens/by-class/{class_id}", tags=["FCM Tokens"])
+async def get_fcm_tokens_by_class(class_id: str):
+    """Get all unique FCM tokens for parents and students in a specific class"""
+    query = """
+    SELECT DISTINCT f.fcm_token 
+    FROM fcm_tokens f
+    JOIN students s ON (f.student_id = s.student_id OR f.parent_id = s.parent_id OR f.parent_id = s.s_parent_id)
+    WHERE s.class_id = %s AND f.fcm_token IS NOT NULL AND f.fcm_token != ''
+    """
+    token_results = execute_query(query, (class_id,), fetch_all=True)
+    fcm_tokens = list({row['fcm_token'] for row in token_results}) if token_results else []
+    return {"fcm_tokens": fcm_tokens, "count": len(fcm_tokens)}
+
 @router.put("/fcm-tokens/{fcm_id}", response_model=FCMTokenResponse, tags=["FCM Tokens"])
 async def update_fcm_token(fcm_id: str, fcm_update: FCMTokenUpdate):
     """Update FCM token with cascade updates"""

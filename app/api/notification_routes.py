@@ -276,6 +276,38 @@ async def send_route_notification(
     success_count = sum(1 for r in results if r.get("success"))
     return {"success": True, "delivered_count": success_count, "total_tokens": len(unique_tokens)}
 
+@router.post("/notifications/class/{class_id}", tags=["Notifications"])
+async def send_class_notification(
+    class_id: str,
+    title: str = Body(...),
+    body: str = Body(...),
+    message_type: str = Body("audio"),
+    x_admin_key: str = Header(..., alias="x-admin-key")
+):
+    """Send a notification to everyone (parents/students) in a specific class"""
+    if x_admin_key != ADMIN_KEY:
+        raise HTTPException(status_code=401, detail="Unauthorized")
+    
+    query = """
+    SELECT DISTINCT ft.fcm_token 
+    FROM fcm_tokens ft
+    JOIN students s ON (ft.student_id = s.student_id OR ft.parent_id = s.parent_id OR ft.parent_id = s.s_parent_id)
+    WHERE s.class_id = %s
+    """
+    tokens = execute_query(query, (class_id,), fetch_all=True)
+    if not tokens:
+        raise HTTPException(status_code=404, detail="No FCM tokens found for this class")
+    
+    unique_tokens = {t['fcm_token'] for t in tokens if t['fcm_token']}
+    tasks = [
+        notification_service.send_to_device(title, body, t_val, recipient_type="class", message_type=message_type)
+        for t_val in unique_tokens
+    ]
+    results = await asyncio.gather(*tasks)
+    
+    success_count = sum(1 for r in results if r.get("success"))
+    return {"success": True, "delivered_count": success_count, "total_tokens": len(unique_tokens)}
+
 from app.services.proximity_service import proximity_service
 
 @router.post("/bus-tracking/location", tags=["Proximity Alerts"])
