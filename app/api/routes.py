@@ -14,6 +14,7 @@ from app.services.bus_tracking import bus_tracking_service
 from app.notification_api.service import notification_service
 from app.services.cascade_updates import cascade_service
 from app.services.upload_service import upload_service
+from app.core.security import get_password_hash
 
 router = APIRouter()
 logger = logging.getLogger(__name__)
@@ -90,11 +91,12 @@ async def create_admin(admin: AdminCreate):
     """Create a new admin"""
     try:
         admin_id = str(uuid.uuid4())
+        hashed_password = get_password_hash(admin.password)
         query = """
         INSERT INTO admins (admin_id, phone, email, password_hash, name)
         VALUES (%s, %s, %s, %s, %s)
         """
-        execute_query(query, (admin_id, admin.phone, admin.email, admin.password, admin.name))
+        execute_query(query, (admin_id, admin.phone, admin.email, hashed_password, admin.name))
         
         return await get_admin(admin_id)
     except Exception as e:
@@ -166,8 +168,9 @@ async def delete_admin(admin_id: str):
 @router.patch("/admins/{admin_id}/password", tags=["Admins"])
 async def patch_admin_password(admin_id: str, password_data: PasswordUpdate):
     """PATCH: Update admin password"""
+    hashed_password = get_password_hash(password_data.new_password)
     query = "UPDATE admins SET password_hash = %s, updated_at = CURRENT_TIMESTAMP WHERE admin_id = %s"
-    result = execute_query(query, (password_data.new_password, admin_id))
+    result = execute_query(query, (hashed_password, admin_id))
     if result == 0:
         raise HTTPException(status_code=404, detail="Admin not found")
     return {"message": "Password updated successfully"}
@@ -175,8 +178,9 @@ async def patch_admin_password(admin_id: str, password_data: PasswordUpdate):
 @router.patch("/admins/{admin_id}/reset-password", tags=["Admins"])
 async def reset_admin_password(admin_id: str, reset_data: PasswordReset):
     """Admin Reset: Overwrite password using ID (No old password required)"""
+    hashed_password = get_password_hash(reset_data.new_password)
     query = "UPDATE admins SET password_hash = %s, updated_at = CURRENT_TIMESTAMP WHERE admin_id = %s"
-    result = execute_query(query, (reset_data.new_password, admin_id))
+    result = execute_query(query, (hashed_password, admin_id))
     if result == 0:
         raise HTTPException(status_code=404, detail="Admin not found")
     return {"message": "Admin password reset successfully"}
@@ -184,8 +188,9 @@ async def reset_admin_password(admin_id: str, reset_data: PasswordReset):
 @router.patch("/admins/reset-password-by-phone", tags=["Admins"])
 async def reset_admin_password_by_phone(reset_data: PasswordResetByPhone):
     """Reset Admin password using phone number (No old password required)"""
+    hashed_password = get_password_hash(reset_data.new_password)
     query = "UPDATE admins SET password_hash = %s, updated_at = CURRENT_TIMESTAMP WHERE phone = %s"
-    result = execute_query(query, (reset_data.new_password, reset_data.phone))
+    result = execute_query(query, (hashed_password, reset_data.phone))
     if result == 0:
         raise HTTPException(status_code=404, detail="Admin with this phone number not found")
     return {"message": "Admin password reset successfully"}
@@ -199,12 +204,13 @@ async def create_parent(parent: ParentCreate):
     """Create a new parent"""
     try:
         parent_id = str(uuid.uuid4())
+        hashed_password = get_password_hash(parent.password)
         query = """
         INSERT INTO parents (parent_id, phone, email, password_hash, name, parent_role, 
                            door_no, street, city, district, pincode)
         VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
         """
-        result = execute_query(query, (parent_id, parent.phone, parent.email, parent.password, 
+        result = execute_query(query, (parent_id, parent.phone, parent.email, hashed_password, 
                              parent.name, parent.parent_role.value, parent.door_no, parent.street,
                              parent.city, parent.district, parent.pincode))
         
@@ -329,8 +335,9 @@ async def update_parent_status(parent_id: str, status_update: StatusUpdate):
 @router.patch("/parents/{parent_id}/password", tags=["Parents"])
 async def patch_parent_password(parent_id: str, password_data: PasswordUpdate):
     """PATCH: Update parent password"""
+    hashed_password = get_password_hash(password_data.new_password)
     query = "UPDATE parents SET password_hash = %s, updated_at = CURRENT_TIMESTAMP WHERE parent_id = %s"
-    result = execute_query(query, (password_data.new_password, parent_id))
+    result = execute_query(query, (hashed_password, parent_id))
     if result == 0:
         raise HTTPException(status_code=404, detail="Parent not found")
     return {"message": "Password updated successfully"}
@@ -338,8 +345,9 @@ async def patch_parent_password(parent_id: str, password_data: PasswordUpdate):
 @router.patch("/parents/{parent_id}/reset-password", tags=["Parents"])
 async def reset_parent_password(parent_id: str, reset_data: PasswordReset):
     """Admin Reset: Overwrite parent password using ID (No old password required)"""
+    hashed_password = get_password_hash(reset_data.new_password)
     query = "UPDATE parents SET password_hash = %s, updated_at = CURRENT_TIMESTAMP WHERE parent_id = %s"
-    result = execute_query(query, (reset_data.new_password, parent_id))
+    result = execute_query(query, (hashed_password, parent_id))
     if result == 0:
         raise HTTPException(status_code=404, detail="Parent not found")
     return {"message": "Parent password reset successfully"}
@@ -347,8 +355,9 @@ async def reset_parent_password(parent_id: str, reset_data: PasswordReset):
 @router.patch("/parents/reset-password-by-phone", tags=["Parents"])
 async def reset_parent_password_by_phone(reset_data: PasswordResetByPhone):
     """Reset Parent password using phone number (No old password required)"""
+    hashed_password = get_password_hash(reset_data.new_password)
     query = "UPDATE parents SET password_hash = %s, updated_at = CURRENT_TIMESTAMP WHERE phone = %s"
-    result = execute_query(query, (reset_data.new_password, reset_data.phone))
+    result = execute_query(query, (hashed_password, reset_data.phone))
     if result == 0:
         raise HTTPException(status_code=404, detail="Parent with this phone number not found")
     return {"message": "Parent password reset successfully"}
@@ -478,14 +487,15 @@ async def create_driver(driver: DriverCreate):
     """Create a new driver"""
     try:
         driver_id = str(uuid.uuid4())
+        hashed_password = get_password_hash(driver.password)
         query = """
         INSERT INTO drivers (driver_id, name, phone, email, licence_number, licence_expiry, 
-                           password_hash, photo_url, fcm_token)
-        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
+                           password_hash, fcm_token)
+        VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
         """
         execute_query(query, (driver_id, driver.name, driver.phone, driver.email,
-                             driver.licence_number, driver.licence_expiry, driver.password,
-                             driver.photo_url, driver.fcm_token))
+                             driver.licence_number, driver.licence_expiry, hashed_password,
+                             driver.fcm_token))
         
         return await get_driver(driver_id)
     except Exception as e:
@@ -505,10 +515,10 @@ async def get_all_drivers(status: DriverStatus = DriverStatus.ALL, active_filter
         params.append(status.value)
     
     if conditions:
-        query = f"SELECT driver_id, name, phone, email, licence_number, licence_expiry, photo_url, status, fcm_token, created_at, updated_at FROM drivers WHERE {' AND '.join(conditions)} ORDER BY name"
+        query = f"SELECT driver_id, name, phone, email, licence_number, licence_expiry, status, fcm_token, created_at, updated_at FROM drivers WHERE {' AND '.join(conditions)} ORDER BY name"
         drivers = execute_query(query, tuple(params), fetch_all=True)
     else:
-        query = "SELECT driver_id, name, phone, email, licence_number, licence_expiry, photo_url, status, fcm_token, created_at, updated_at FROM drivers ORDER BY name"
+        query = "SELECT driver_id, name, phone, email, licence_number, licence_expiry, status, fcm_token, created_at, updated_at FROM drivers ORDER BY name"
         drivers = execute_query(query, fetch_all=True)
     return drivers or []
 
@@ -516,7 +526,7 @@ async def get_all_drivers(status: DriverStatus = DriverStatus.ALL, active_filter
 @router.get("/drivers/{driver_id}", response_model=DriverResponse, tags=["Drivers"])
 async def get_driver(driver_id: str):
     """Get driver by ID"""
-    query = "SELECT driver_id, name, phone, email, licence_number, licence_expiry, photo_url, status, fcm_token, created_at, updated_at FROM drivers WHERE driver_id = %s"
+    query = "SELECT driver_id, name, phone, email, licence_number, licence_expiry, status, fcm_token, created_at, updated_at FROM drivers WHERE driver_id = %s"
     driver = execute_query(query, (driver_id,), fetch_one=True)
     if not driver:
         raise HTTPException(status_code=404, detail="Driver not found")
@@ -592,8 +602,9 @@ async def delete_driver(driver_id: str):
 @router.patch("/drivers/{driver_id}/password", tags=["Drivers"])
 async def patch_driver_password(driver_id: str, password_data: PasswordUpdate):
     """PATCH: Update driver password"""
+    hashed_password = get_password_hash(password_data.new_password)
     query = "UPDATE drivers SET password_hash = %s, updated_at = CURRENT_TIMESTAMP WHERE driver_id = %s"
-    result = execute_query(query, (password_data.new_password, driver_id))
+    result = execute_query(query, (hashed_password, driver_id))
     if result == 0:
         raise HTTPException(status_code=404, detail="Driver not found")
     return {"message": "Password updated successfully"}
@@ -601,8 +612,9 @@ async def patch_driver_password(driver_id: str, password_data: PasswordUpdate):
 @router.patch("/drivers/{driver_id}/reset-password", tags=["Drivers"])
 async def reset_driver_password(driver_id: str, reset_data: PasswordReset):
     """Admin Reset: Overwrite driver password using ID (No old password required)"""
+    hashed_password = get_password_hash(reset_data.new_password)
     query = "UPDATE drivers SET password_hash = %s, updated_at = CURRENT_TIMESTAMP WHERE driver_id = %s"
-    result = execute_query(query, (reset_data.new_password, driver_id))
+    result = execute_query(query, (hashed_password, driver_id))
     if result == 0:
         raise HTTPException(status_code=404, detail="Driver not found")
     return {"message": "Driver password reset successfully"}
@@ -610,8 +622,9 @@ async def reset_driver_password(driver_id: str, reset_data: PasswordReset):
 @router.patch("/drivers/reset-password-by-phone", tags=["Drivers"])
 async def reset_driver_password_by_phone(reset_data: PasswordResetByPhone):
     """Reset Driver password using phone number (No old password required)"""
+    hashed_password = get_password_hash(reset_data.new_password)
     query = "UPDATE drivers SET password_hash = %s, updated_at = CURRENT_TIMESTAMP WHERE phone = %s"
-    result = execute_query(query, (reset_data.new_password, reset_data.phone))
+    result = execute_query(query, (hashed_password, reset_data.phone))
     if result == 0:
         raise HTTPException(status_code=404, detail="Driver with this phone number not found")
     return {"message": "Driver password reset successfully"}

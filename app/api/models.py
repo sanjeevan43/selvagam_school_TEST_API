@@ -206,7 +206,6 @@ class DriverUpdate(BaseModel):
     email: Optional[EmailStr] = None
     licence_number: Optional[str] = Field(None, max_length=50)
     licence_expiry: Optional[date] = None
-    photo_url: Optional[str] = Field(None, max_length=255)
     fcm_token: Optional[str] = Field(None, max_length=255)
     status: Optional[DriverStatus] = None
 
@@ -223,7 +222,6 @@ class DriverResponse(BaseModel):
     email: Optional[EmailStr] = None
     licence_number: Optional[str] = Field(None, max_length=50)
     licence_expiry: Optional[date] = None
-    photo_url: Optional[str] = Field(None, max_length=255)
     fcm_token: Optional[str] = Field(None, max_length=255)
     status: DriverStatus
     created_at: datetime

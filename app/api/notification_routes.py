@@ -4,6 +4,7 @@ from typing import Optional, List
 from app.api.models import *
 from app.core.database import execute_query
 from app.core.auth import create_access_token
+from app.core.security import verify_password
 from datetime import datetime
 import asyncio
 import os
@@ -17,7 +18,7 @@ async def admin_login(login_data: LoginRequest):
         query = "SELECT admin_id, phone, password_hash, name FROM admins WHERE phone = %s AND status = 'ACTIVE'"
         admin = execute_query(query, (login_data.phone,), fetch_one=True)
         
-        if admin and admin['password_hash'] == login_data.password:
+        if admin and verify_password(login_data.password, admin['password_hash']):
             # Update last login
             execute_query("UPDATE admins SET last_login_at = %s WHERE admin_id = %s", 
                          (datetime.now(), admin['admin_id']))
@@ -38,7 +39,7 @@ async def parent_login(login_data: LoginRequest):
         query = "SELECT parent_id, phone, password_hash, name FROM parents WHERE phone = %s AND parents_active_status = 'ACTIVE'"
         parent = execute_query(query, (login_data.phone,), fetch_one=True)
         
-        if parent and parent['password_hash'] == login_data.password:
+        if parent and verify_password(login_data.password, parent['password_hash']):
             # Update last login
             execute_query("UPDATE parents SET last_login_at = %s WHERE parent_id = %s", 
                          (datetime.now(), parent['parent_id']))
@@ -59,7 +60,7 @@ async def driver_login(login_data: LoginRequest):
         query = "SELECT driver_id, phone, password_hash, name FROM drivers WHERE phone = %s AND status = 'ACTIVE'"
         driver = execute_query(query, (login_data.phone,), fetch_one=True)
         
-        if driver and driver['password_hash'] == login_data.password:
+        if driver and verify_password(login_data.password, driver['password_hash']):
             # Update last login
             execute_query("UPDATE drivers SET updated_at = CURRENT_TIMESTAMP WHERE driver_id = %s", 
                          (driver['driver_id'],))
