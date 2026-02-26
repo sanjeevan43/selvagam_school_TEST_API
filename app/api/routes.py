@@ -14,7 +14,7 @@ from app.services.bus_tracking import bus_tracking_service
 from app.notification_api.service import notification_service
 from app.services.cascade_updates import cascade_service
 from app.services.upload_service import upload_service
-from app.core.security import get_password_hash
+from app.core.security import get_password_hash, generate_default_password
 
 router = APIRouter()
 logger = logging.getLogger(__name__)
@@ -84,17 +84,30 @@ async def create_admin(admin: AdminCreate):
     """Create a new admin"""
     try:
         admin_id = str(uuid.uuid4())
-        hashed_password = get_password_hash(admin.password)
+        
+        # Auto-generate password
+        try:
+            default_password = generate_default_password(admin.name, admin.phone)
+        except ValueError as e:
+            raise HTTPException(status_code=400, detail=str(e))
+            
+        hashed_password = get_password_hash(default_password)
+        
         query = """
         INSERT INTO admins (admin_id, phone, email, password_hash, name)
         VALUES (%s, %s, %s, %s, %s)
         """
-        execute_query(query, (admin_id, admin.phone, admin.email, hashed_password, admin.name))
+        result = execute_query(query, (admin_id, admin.phone, admin.email, hashed_password, admin.name))
+        
+        if result == 0:
+            raise HTTPException(status_code=400, detail="Failed to insert admin")
         
         return await get_admin(admin_id)
+    except HTTPException:
+        raise
     except Exception as e:
         logger.error(f"Create admin error: {e}")
-        raise HTTPException(status_code=400, detail="Failed to create admin")
+        raise HTTPException(status_code=400, detail=f"Failed to create admin: {str(e)}")
 
 @router.get("/admins", response_model=List[AdminResponse], tags=["Admins"])
 async def get_all_admins(status: UserStatus = UserStatus.ALL):
@@ -197,7 +210,15 @@ async def create_parent(parent: ParentCreate):
     """Create a new parent"""
     try:
         parent_id = str(uuid.uuid4())
-        hashed_password = get_password_hash(parent.password)
+        
+        # Auto-generate password
+        try:
+            default_password = generate_default_password(parent.name, parent.phone)
+        except ValueError as e:
+            raise HTTPException(status_code=400, detail=str(e))
+            
+        hashed_password = get_password_hash(default_password)
+        
         query = """
         INSERT INTO parents (parent_id, phone, email, password_hash, name, parent_role, 
                            door_no, street, city, district, pincode)
@@ -211,6 +232,8 @@ async def create_parent(parent: ParentCreate):
             raise HTTPException(status_code=400, detail="Failed to insert parent")
         
         return await get_parent(parent_id)
+    except HTTPException:
+        raise
     except Exception as e:
         logger.error(f"Create parent error: {e}")
         raise HTTPException(status_code=400, detail=f"Failed to create parent: {str(e)}")
@@ -480,20 +503,33 @@ async def create_driver(driver: DriverCreate):
     """Create a new driver"""
     try:
         driver_id = str(uuid.uuid4())
-        hashed_password = get_password_hash(driver.password)
+        
+        # Auto-generate password
+        try:
+            default_password = generate_default_password(driver.name, driver.phone)
+        except ValueError as e:
+            raise HTTPException(status_code=400, detail=str(e))
+            
+        hashed_password = get_password_hash(default_password)
+        
         query = """
         INSERT INTO drivers (driver_id, name, phone, email, licence_number, licence_expiry, 
                            password_hash, fcm_token)
         VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
         """
-        execute_query(query, (driver_id, driver.name, driver.phone, driver.email,
+        result = execute_query(query, (driver_id, driver.name, driver.phone, driver.email,
                              driver.licence_number, driver.licence_expiry, hashed_password,
                              driver.fcm_token))
         
+        if result == 0:
+            raise HTTPException(status_code=400, detail="Failed to insert driver")
+        
         return await get_driver(driver_id)
+    except HTTPException:
+        raise
     except Exception as e:
         logger.error(f"Create driver error: {e}")
-        raise HTTPException(status_code=400, detail="Failed to create driver")
+        raise HTTPException(status_code=400, detail=f"Failed to create driver: {str(e)}")
 
 @router.get("/drivers", response_model=List[DriverResponse], tags=["Drivers"])
 async def get_all_drivers(status: DriverStatus = DriverStatus.ALL, active_filter: ActiveFilter = ActiveFilter.ALL):

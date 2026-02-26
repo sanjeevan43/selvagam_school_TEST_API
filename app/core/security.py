@@ -27,3 +27,21 @@ def get_password_hash(password: str) -> str:
         password.encode('utf-8'), 
         bcrypt.gensalt()
     ).decode('utf-8')
+def generate_default_password(name: str, phone: int) -> str:
+    """
+    Generate default password: First 4 letters of name + "@" + Last 4 digits of phone
+    If name has < 4 chars, use full name.
+    """
+    phone_str = str(phone)
+    if len(phone_str) < 4:
+        # This will be caught by the route and turned into an HTTPException if needed,
+        # but the request specifically asked to handle it safely and return validation error.
+        raise ValueError("Phone number must have at least 4 digits")
+    
+    # Extract first 4 chars from name
+    name_part = name[:4]
+    
+    # Extract last 4 digits from phone
+    phone_part = phone_str[-4:]
+    
+    return f"{name_part}@{phone_part}"

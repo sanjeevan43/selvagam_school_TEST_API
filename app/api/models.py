@@ -100,7 +100,7 @@ class AdminBase(BaseModel):
 
 
 class AdminCreate(AdminBase):
-    password: str = Field(..., min_length=1, max_length=72)
+    pass
 
 class AdminUpdate(BaseModel):
     phone: Optional[int] = Field(None, description="User phone number")
@@ -145,7 +145,7 @@ class ParentBase(BaseModel):
 
 
 class ParentCreate(ParentBase):
-    password: str = Field(..., min_length=1, max_length=72)  # Password required for login
+    pass  # Password will be auto-generated
 
 class ParentUpdate(BaseModel):
     phone: Optional[int] = Field(None, description="User phone number")
@@ -200,7 +200,7 @@ class DriverBase(BaseModel):
 
 
 class DriverCreate(DriverBase):
-    password: str = Field(..., min_length=1, max_length=72)  # Password required for login
+    pass  # Password will be auto-generated
 
 class DriverUpdate(BaseModel):
     name: Optional[str] = Field(None, max_length=100)
