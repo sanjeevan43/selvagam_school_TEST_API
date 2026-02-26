@@ -57,7 +57,7 @@ from app.api.notification_routes import router as notification_router
 
 # Include routers
 app.include_router(main_router, prefix="/api/v1")
-app.include_router(notification_router, prefix="/api")
+app.include_router(notification_router, prefix="/api/v1")
 
 # Create upload directory if it doesn't exist
 if not os.path.exists(settings.UPLOAD_DIR):
