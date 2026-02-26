@@ -965,6 +965,28 @@ async def get_all_route_stops(route_id: Optional[str] = None):
         stops = execute_query(query, fetch_all=True)
     return stops or []
 
+@router.get("/route-stops/by-route/{route_id}/pickup-order", response_model=List[RouteStopResponse], tags=["Route Stops"])
+async def get_route_stops_pickup_order(route_id: str):
+    """Get all stops for a route ordered by pickup_stop_order"""
+    route = execute_query("SELECT route_id FROM routes WHERE route_id = %s", (route_id,), fetch_one=True)
+    if not route:
+        raise HTTPException(status_code=404, detail="Route not found")
+    
+    query = "SELECT * FROM route_stops WHERE route_id = %s ORDER BY pickup_stop_order ASC"
+    stops = execute_query(query, (route_id,), fetch_all=True)
+    return stops or []
+
+@router.get("/route-stops/by-route/{route_id}/drop-order", response_model=List[RouteStopResponse], tags=["Route Stops"])
+async def get_route_stops_drop_order(route_id: str):
+    """Get all stops for a route ordered by drop_stop_order"""
+    route = execute_query("SELECT route_id FROM routes WHERE route_id = %s", (route_id,), fetch_one=True)
+    if not route:
+        raise HTTPException(status_code=404, detail="Route not found")
+    
+    query = "SELECT * FROM route_stops WHERE route_id = %s ORDER BY drop_stop_order ASC"
+    stops = execute_query(query, (route_id,), fetch_all=True)
+    return stops or []
+
 @router.get("/route-stops/{stop_id}", response_model=RouteStopResponse, tags=["Route Stops"])
 async def get_route_stop(stop_id: str):
     """Get route stop by ID"""
