@@ -27,29 +27,53 @@ logger = logging.getLogger(__name__)
 @router.get("/auth/admin/profile/phone/{phone}", tags=["Authentication"], response_model=AdminResponse)
 async def get_admin_profile_by_phone(phone: int):
     """Get Admin profile by phone number"""
-    query = "SELECT admin_id, phone, email, name, status, last_login_at, created_at, updated_at FROM admins WHERE phone = %s"
-    admin = execute_query(query, (phone,), fetch_one=True)
-    if not admin:
-        raise HTTPException(status_code=404, detail="Admin not found")
-    return admin
+    try:
+        query = "SELECT admin_id, phone, email, name, status, last_login_at, created_at, updated_at FROM admins WHERE phone = %s"
+        admin = execute_query(query, (phone,), fetch_one=True)
+        if not admin:
+            raise HTTPException(status_code=404, detail="Admin not found")
+        return admin
+    except HTTPException:
+        raise
+    except Exception as e:
+        import traceback
+        logger.error(f"Error fetching admin profile: {e}")
+        logger.error(traceback.format_exc())
+        raise HTTPException(status_code=500, detail=f"Failed to fetch admin profile: {str(e)}")
 
 @router.get("/auth/parent/profile/phone/{phone}", tags=["Authentication"], response_model=ParentResponse)
 async def get_parent_profile_by_phone(phone: int):
     """Get Parent profile by phone number"""
-    query = "SELECT parent_id, phone, email, name, parent_role, door_no, street, city, district, pincode, parents_active_status, last_login_at, created_at, updated_at FROM parents WHERE phone = %s"
-    parent = execute_query(query, (phone,), fetch_one=True)
-    if not parent:
-        raise HTTPException(status_code=404, detail="Parent not found")
-    return parent
+    try:
+        query = "SELECT parent_id, phone, email, name, parent_role, door_no, street, city, district, pincode, parents_active_status, last_login_at, created_at, updated_at FROM parents WHERE phone = %s"
+        parent = execute_query(query, (phone,), fetch_one=True)
+        if not parent:
+            raise HTTPException(status_code=404, detail="Parent not found")
+        return parent
+    except HTTPException:
+        raise
+    except Exception as e:
+        import traceback
+        logger.error(f"Error fetching parent profile: {e}")
+        logger.error(traceback.format_exc())
+        raise HTTPException(status_code=500, detail=f"Failed to fetch parent profile: {str(e)}")
 
 @router.get("/auth/driver/profile/phone/{phone}", tags=["Authentication"], response_model=DriverResponse)
 async def get_driver_profile_by_phone(phone: int):
     """Get Driver profile by phone number"""
-    query = "SELECT driver_id, name, phone, email, licence_number, licence_expiry, status, fcm_token, created_at, updated_at FROM drivers WHERE phone = %s"
-    driver = execute_query(query, (phone,), fetch_one=True)
-    if not driver:
-        raise HTTPException(status_code=404, detail="Driver not found")
-    return driver
+    try:
+        query = "SELECT driver_id, name, phone, email, licence_number, licence_expiry, status, fcm_token, created_at, updated_at FROM drivers WHERE phone = %s"
+        driver = execute_query(query, (phone,), fetch_one=True)
+        if not driver:
+            raise HTTPException(status_code=404, detail="Driver not found")
+        return driver
+    except HTTPException:
+        raise
+    except Exception as e:
+        import traceback
+        logger.error(f"Error fetching driver profile: {e}")
+        logger.error(traceback.format_exc())
+        raise HTTPException(status_code=500, detail=f"Failed to fetch driver profile: {str(e)}")
 
 # =====================================================
 # ADMIN ENDPOINTS

@@ -55,42 +55,80 @@ async def admin_login(login_data: LoginRequest):
 async def parent_login(login_data: LoginRequest):
     """Login for Parent users"""
     try:
+        import logging
+        logger = logging.getLogger(__name__)
+        logger.info(f"Parent login attempt for phone: {login_data.phone}")
+        
         query = "SELECT parent_id, phone, password_hash, name FROM parents WHERE phone = %s AND parents_active_status = 'ACTIVE'"
         parent = execute_query(query, (login_data.phone,), fetch_one=True)
         
-        if parent and verify_password(login_data.password, parent['password_hash']):
-            # Update last login
-            execute_query("UPDATE parents SET last_login_at = %s WHERE parent_id = %s", 
-                         (datetime.now(), parent['parent_id']))
-            
-            access_token = create_access_token(
-                data={"sub": parent['parent_id'], "user_type": "parent", "phone": parent['phone']}
-            )
-            return {"access_token": access_token, "token_type": "bearer"}
+        if parent:
+            logger.info(f"Parent found: {parent['name']}")
+            if verify_password(login_data.password, parent['password_hash']):
+                logger.info(f"Password verified for parent: {parent['name']}")
+                # Update last login
+                try:
+                    execute_query("UPDATE parents SET last_login_at = %s WHERE parent_id = %s", 
+                                 (datetime.now(), parent['parent_id']))
+                except Exception as update_err:
+                    logger.warning(f"Failed to update last_login_at: {update_err}")
+                
+                access_token = create_access_token(
+                    data={"sub": parent['parent_id'], "user_type": "parent", "phone": parent['phone']}
+                )
+                return {"access_token": access_token, "token_type": "bearer"}
+            else:
+                logger.warning(f"Invalid password for parent: {parent['name']}")
+        else:
+            logger.warning(f"Parent not found or inactive for phone: {login_data.phone}")
         
         raise HTTPException(status_code=401, detail="Invalid parent credentials or account inactive")
+    except HTTPException:
+        raise
     except Exception as e:
+        import traceback
+        logger.error(f"System error in parent_login: {str(e)}")
+        logger.error(traceback.format_exc())
         raise HTTPException(status_code=500, detail=f"Parent login failed: {str(e)}")
 
 @router.post("/auth/driver/login", response_model=Token, tags=["Authentication"])
 async def driver_login(login_data: LoginRequest):
     """Login for Driver users"""
     try:
+        import logging
+        logger = logging.getLogger(__name__)
+        logger.info(f"Driver login attempt for phone: {login_data.phone}")
+        
         query = "SELECT driver_id, phone, password_hash, name FROM drivers WHERE phone = %s AND status = 'ACTIVE'"
         driver = execute_query(query, (login_data.phone,), fetch_one=True)
         
-        if driver and verify_password(login_data.password, driver['password_hash']):
-            # Update last login
-            execute_query("UPDATE drivers SET updated_at = CURRENT_TIMESTAMP WHERE driver_id = %s", 
-                         (driver['driver_id'],))
-            
-            access_token = create_access_token(
-                data={"sub": driver['driver_id'], "user_type": "driver", "phone": driver['phone']}
-            )
-            return {"access_token": access_token, "token_type": "bearer"}
+        if driver:
+            logger.info(f"Driver found: {driver['name']}")
+            if verify_password(login_data.password, driver['password_hash']):
+                logger.info(f"Password verified for driver: {driver['name']}")
+                # Update status/update time
+                try:
+                    execute_query("UPDATE drivers SET updated_at = CURRENT_TIMESTAMP WHERE driver_id = %s", 
+                                 (driver['driver_id'],))
+                except Exception as update_err:
+                    logger.warning(f"Failed to update driver timestamp: {update_err}")
+                
+                access_token = create_access_token(
+                    data={"sub": driver['driver_id'], "user_type": "driver", "phone": driver['phone']}
+                )
+                return {"access_token": access_token, "token_type": "bearer"}
+            else:
+                logger.warning(f"Invalid password for driver: {driver['name']}")
+        else:
+            logger.warning(f"Driver not found or inactive for phone: {login_data.phone}")
         
         raise HTTPException(status_code=401, detail="Invalid driver credentials or account inactive")
+    except HTTPException:
+        raise
     except Exception as e:
+        import traceback
+        logger.error(f"System error in driver_login: {str(e)}")
+        logger.error(traceback.format_exc())
         raise HTTPException(status_code=500, detail=f"Driver login failed: {str(e)}")
 
 @router.get("/notifications/status", tags=["Notifications"])
