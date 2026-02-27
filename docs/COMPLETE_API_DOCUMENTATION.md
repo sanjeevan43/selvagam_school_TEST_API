@@ -11,15 +11,15 @@
 8. [Route Stop APIs](#route-stop-apis)
 9. [Student APIs](#student-apis)
 10. [Trip APIs](#trip-apis)
-11. [Database Table Models](#database-table-models)
-12. [Entity Relationships](#entity-relationships)
-13. [Security & Integration](#security--integration)
+11. [Tracking & Proximity APIs](#tracking--proximity-apis)
+12. [Class & Promotion APIs](#class--promotion-apis)
+13. [Database Table Models](#database-table-models)
 
 ---
 
 ## 🎯 Overview
 
-**Base URL**: `http://72.61.250.191:8080/api/v1`
+**Base URL**: `http://api.selvagam.com/api/v1`
 **API Version**: 1.0.0
 **Authentication**: JWT Bearer Token
 
@@ -27,167 +27,115 @@
 
 ## 🔐 Authentication APIs
 
-### 1. Login
-**Endpoint**: `POST /auth/login`
-**Description**: Universal login for admins, parents, and drivers.
-**Request Body**:
-```json
-{
-  "phone": 9876543210,
-  "password": "your_password"
-}
-```
+### 1. Split Login
+**Endpoints**: 
+- `POST /auth/admin/login`
+- `POST /auth/parent/login`
+- `POST /auth/driver/login`
+**Description**: Separate login endpoints for different user types to ensure security and role isolation.
 
-### 2. Get Profile
-**Endpoint**: `GET /auth/profile?phone={phone_number}`
-**Description**: Get user profile by phone number.
+### 2. Profile by Phone
+**Endpoints**:
+- `GET /auth/admin/profile/phone/{phone}`
+- `GET /auth/parent/profile/phone/{phone}`
+- `GET /auth/driver/profile/phone/{phone}`
 
 ---
 
 ## 👨‍💼 Admin APIs
-
-### 1. Create Admin
-**Endpoint**: `POST /admins`
-
-### 2. Get All Admins
-**Endpoint**: `GET /admins`
-
-### 3. Update Admin Status
-**Endpoint**: `PUT /admins/{admin_id}/status`
-**Status Options**: `ACTIVE`, `INACTIVE`
+- `GET /admins` - List all admins
+- `PATCH /admins/{id}/reset-password` - Reset password (Admin override)
+- `PATCH /admins/{id}/reset-default-password` - Reset to auto-generated default
 
 ---
 
 ## 👨‍👩‍👧‍👦 Parent APIs
-
-### 1. Create Parent
-**Endpoint**: `POST /parents`
-
-### 2. Update Parent FCM Token
-**Endpoint**: `PATCH /parents/{parent_id}/fcm-token`
+- `POST /parents` - Create parent
+- `PUT /parents/{id}/fcm-token` - Update FCM token on login
+- `GET /parents/fcm-tokens/all` - List all active parent tokens
 
 ---
 
 ## 🚗 Driver APIs
-
-### 1. Create Driver
-**Endpoint**: `POST /drivers`
-
-### 2. Update Driver Status
-**Endpoint**: `PUT /drivers/{driver_id}/status`
-**Available Status Values**: `ACTIVE`, `INACTIVE`, `SUSPENDED` (Use for suspended drivers)
+- `POST /drivers` - Create driver
+- `POST /uploads/driver/{id}/photo` - Upload driver profile photo
+- `GET /drivers/fcm-tokens/all` - List all active driver tokens
 
 ---
 
 ## 🚌 Bus APIs
+- `POST /buses` - Create bus with RC/FC expiry tracking
+- `POST /uploads/bus/{id}/rc-book` - Upload RC Book PDF/Image
+- `POST /uploads/bus/{id}/fc-certificate` - Upload FC Certificate
+- `PATCH /buses/{id}/driver` - Assign/Reassign driver to bus
 
-### 1. Create Bus
-**Endpoint**: `POST /buses`
+---
 
-### 2. Update Bus Status
-**Endpoint**: `PUT /buses/{bus_id}/status`
-**Available Status Values**: `ACTIVE`, `INACTIVE`, `MAINTENANCE` (Use for buses in maintenance)
+## 🛣️ Route APIs
+- `POST /routes` - Create route
+- `GET /routes` - List all routes (with status filtering)
+- `PUT /routes/{id}/status` - Activate/Deactivate route
+
+---
+
+## 🛑 Route Stop APIs
+- `POST /route-stops` - Create stop (Automatic shifting of existing stops)
+- `PUT /route-stops/{id}` - Update stop (Transactional reordering if order changes)
+- `GET /route-stops/by-route/{route_id}/pickup-order` - Ordered list for pickup
 
 ---
 
 ## 🎓 Student APIs
-
-### 1. Create Student
-**Endpoint**: `POST /students`
-**Description**: Create a new student. Provides specific error messages for invalid references.
-**Error Handling**: Returns detailed 400 errors if parent_id, route_id, or stop_id is invalid.
-
-### 2. Update Student Transport Status
-**Endpoint**: `PUT /students/{student_id}/status`
-**Transport Status Options**: `ACTIVE`, `TEMP_STOP`, `CANCELLED`
-
-### 3. Assign/Unassign Secondary Parent
-**Endpoint**: `PATCH /students/{student_id}/secondary-parent`
-**Description**: Link a second parent to a student (e.g. mother and father). Pass `null` for `s_parent_id` to unassign.
-**Request Body**:
-```json
-{
-  "s_parent_id": "parent_uuid"
-}
-```
-OR
-```json
-{
-  "s_parent_id": null
-}
-```
+- `POST /students` - Create student with Primary/Secondary parent assignment
+- `PATCH /students/{id}/status` - Combined update for study and transport status
+- `POST /students/{id}/switch-parents` - Swap Primary and Secondary parent roles
+- `POST /uploads/student/{id}/photo` - Upload student photo
 
 ---
 
 ## 🗓️ Trip APIs
-
-### 1. Create Trip
-**Endpoint**: `POST /trips`
-**Trip Type**: `MORNING`, `EVENING`
-
-### 2. Update Trip Status (PUT)
-**Endpoint**: `PUT /trips/{trip_id}/status`
-**Trip Status Options**: `NOT_STARTED`, `ONGOING`, `PAUSED`, `COMPLETED`, `CANCELED`
-
-### 3. Update Trip Status (PATCH)
-**Endpoint**: `PATCH /trips/{trip_id}/status`
-**Trip Status Options**: `NOT_STARTED`, `ONGOING`, `PAUSED`, `COMPLETED`, `CANCELED`
+- `POST /trips` - Create trip (Morning/Evening)
+- `GET /trips/ongoing/all` - List currently active trips
 
 ---
 
-## 🗄️ Database Table Models
-
-### 1. Admins Table
-| Column | Type | Description |
-|--------|------|-------------|
-| admin_id | VARCHAR(36) | Primary Key |
-| phone | BIGINT | Unique Phone |
-| status | VARCHAR(20) | ACTIVE, INACTIVE |
-
-### 2. Drivers Table
-| Column | Type | Description |
-|--------|------|-------------|
-| driver_id | VARCHAR(36) | Primary Key |
-| status | VARCHAR(20) | ACTIVE, INACTIVE, SUSPENDED |
-
-### 3. Buses Table
-| Column | Type | Description |
-|--------|------|-------------|
-| bus_id | VARCHAR(36) | Primary Key |
-| status | VARCHAR(20) | ACTIVE, INACTIVE, MAINTENANCE |
-
-### 4. Students Table
-| Column | Type | Description |
-|--------|------|-------------|
-| student_id | VARCHAR(36) | Primary Key |
-| parent_id | VARCHAR(36) | Foreign Key (Primary Parent) |
-| s_parent_id | CHAR(36) | Secondary Parent (Nullable, Default NULL) |
-| name | VARCHAR(100) | Student Name |
+## 📡 Tracking & Proximity APIs
+- `POST /bus-tracking/location` - Combined endpoint for:
+    - Stop progression tracking
+    - Trip auto-completion
+    - Proximity alerts ("Approaching", "Arrived")
+- `POST /trip/start` - Notify all parents on a route that the trip has started
 
 ---
 
-## 📊 Entity Relationships
-
-```
-Parents (has) → Students
-  └─ Students (assigned to) → Routes
-      ├─ Routes (has) → Route Stops
-      └─ Routes (used by) → Buses
-          └─ Buses (driven by) → Drivers
-
-Trips (combines): Bus, Driver, Route
-```
+## 🏫 Class & Promotion APIs
+- `POST /students/bulk-upgrade-class` - Move all students from one class to another
+- `POST /classes/promote-all` - Bulk increment all students' class (e.g., Class 9 → 10)
+- `POST /classes/demote-all` - Bulk decrement all students' class (Admin rollback)
 
 ---
 
-## 🔒 Security Features
+## 🗄️ Database Table Models (Key Fields)
 
-1. **JWT Authentication**: Secure token-based auth for all protected endpoints.
-2. **Password Hashing**: Bcrypt encryption for all user passwords.
-3. **Foreign Key Integrity**: Strict database constraints with clear API error reporting.
+### 1. Students Table
+| Column | Type | Description |
+|--------|------|-------------|
+| student_id | UUID | Primary Key |
+| parent_id | UUID | Primary Parent |
+| s_parent_id | UUID | Secondary Parent (Nullable) |
+| student_status | Enum | `CURRENT`, `ALUMNI`, `DISCONTINUED`, `LONG_ABSENT` |
+| transport_status | Enum | `ACTIVE`, `INACTIVE` |
+
+### 2. Buses Table
+| Column | Type | Description |
+|--------|------|-------------|
+| status | Enum | `ACTIVE`, `INACTIVE`, `MAINTENANCE`, `SCRAP`, `SPARE` |
+| rc_expiry_date | Date | Registration expiry |
+| fc_expiry_date | Date | Fitness certificate expiry |
 
 ---
 
 **Interactive Documentation**:
-- [Swagger UI](http://72.61.250.191:8080/docs)
-- [ReDoc](http://72.61.250.191:8080/redoc)
+- [Swagger UI](http://api.selvagam.com/docs)
+- [ReDoc](http://api.selvagam.com/redoc)
+

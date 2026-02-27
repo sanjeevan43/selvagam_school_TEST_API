@@ -924,6 +924,7 @@ async def create_route_stop(route_stop: RouteStopCreate):
                     drop_stop_order = drop_stop_order + 1
                 WHERE route_id = %s
                 AND pickup_stop_order >= %s
+                ORDER BY pickup_stop_order DESC
                 """
                 cursor.execute(shift_query, (route_id, new_order))
 
@@ -1054,6 +1055,7 @@ async def update_route_stop(stop_id: str, stop_update: RouteStopUpdate):
                             drop_stop_order = drop_stop_order + 1 
                         WHERE route_id = %s AND pickup_stop_order >= %s 
                         AND pickup_stop_order < %s AND stop_id != %s
+                        ORDER BY pickup_stop_order DESC
                         """
                         cursor.execute(shift_query, (old_stop['route_id'], new_order, old_order, stop_id))
                     else:
@@ -1064,6 +1066,7 @@ async def update_route_stop(stop_id: str, stop_update: RouteStopUpdate):
                             drop_stop_order = drop_stop_order - 1 
                         WHERE route_id = %s AND pickup_stop_order > %s 
                         AND pickup_stop_order <= %s AND stop_id != %s
+                        ORDER BY pickup_stop_order ASC
                         """
                         cursor.execute(shift_query, (old_stop['route_id'], old_order, new_order, stop_id))
         
@@ -1106,6 +1109,7 @@ async def delete_route_stop(stop_id: str):
                     drop_stop_order = drop_stop_order - 1
                 WHERE route_id = %s
                 AND pickup_stop_order > %s
+                ORDER BY pickup_stop_order ASC
                 """
                 cursor.execute(shift_query, (route_id, deleted_order))
                 

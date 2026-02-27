@@ -5,25 +5,29 @@ This document explains how to use the notification system to send messages to Pa
 ---
 
 ## 🔐 Authentication
-All notification endpoints require the following header for security:
+Most notification endpoints require the following header for security:
 
 | Header Key | Value |
 | :--- | :--- |
 | `x-admin-key` | `selvagam-admin-key-2024` |
+
+*Note: Some endpoints use standard JWT Bearer tokens.*
 
 ---
 
 ## 📡 Status Check
 Before sending notifications, check if the service is online and the Firebase credentials are correctly loaded.
 
-**Endpoint:** `GET /api/notifications/status`
+**Endpoint:** `GET /api/v1/notifications/status`
 
 **Success Response:**
 ```json
 {
   "status": "online",
   "initialized": true,
-  "creds_found": true
+  "creds_found": true,
+  "creds_path": "/path/to/firebase-credentials.json",
+  "project_id": "school-transport-fcm"
 }
 ```
 
@@ -32,18 +36,20 @@ Before sending notifications, check if the service is online and the Firebase cr
 ## 🚀 Sending Notifications
 
 ### 1. Broadcast to All Parents
-Sends a notification to every registered parent device in the system.
-**Endpoint:** `POST /api/notifications/broadcast/parents`
+Sends a notification to every registered parent device with an active status.
+**Endpoint:** `POST /api/v1/notifications/broadcast/parents`
 ```json
 {
   "title": "School Holiday",
-  "body": "Tomorrow is a holiday due to local festival."
+  "body": "Tomorrow is a holiday due to local festival.",
+  "messageType": "audio"
 }
 ```
+*`messageType` can be "audio" or "text". Default is "audio" for prioritized alerts.*
 
 ### 2. Broadcast to All Drivers
 Sends a notification to every active driver's app.
-**Endpoint:** `POST /api/notifications/broadcast/drivers`
+**Endpoint:** `POST /api/v1/notifications/broadcast/drivers`
 ```json
 {
   "title": "New Route Update",
@@ -52,8 +58,8 @@ Sends a notification to every active driver's app.
 ```
 
 ### 3. Send to a Specific Route
-Notifies all parents and students assigned to a specific bus route ID.
-**Endpoint:** `POST /api/notifications/route/{route_id}`
+Notifies all parents and students assigned to a specific bus route ID (either pickup or drop).
+**Endpoint:** `POST /api/v1/notifications/route/{route_id}`
 ```json
 {
   "title": "Delay Alert: Route 5",
@@ -61,43 +67,43 @@ Notifies all parents and students assigned to a specific bus route ID.
 }
 ```
 
-### 4. Send to a Specific Student/Parent
-**Endpoint:** `POST /api/notifications/student/{student_id}` (Notifies the child's guardians)
-**Endpoint:** `POST /api/notifications/parent/{parent_id}` (Notifies specific parent)
+### 4. Send to a Specific Class
+Notifies all parents who have students in a specific class.
+**Endpoint:** `POST /api/v1/notifications/class/{class_id}`
+
+### 5. Individual Notifications
+- **Student Guardians**: `POST /api/v1/notifications/student/{student_id}`
+- **Specific Parent**: `POST /api/v1/notifications/parent/{parent_id}`
+- **Specific Device Token**: `POST /api/v1/notifications/send-device` (Requires `token` field)
 
 ---
 
 ## 📱 Mobile App Integration (Technical Details)
 
-When a notification is sent from the backend, the mobile app receives both a **Notification** (visible alert) and a **Data Payload** (hidden logic).
+When a notification is sent, the mobile app receives both a **Notification** (UI) and a **Data Payload** (Logic).
 
 ### Data Payload Format:
-Your app should listen for these keys in the notification data:
+The app should handle these keys in the FCM message:
 
 | Key | Description |
 | :--- | :--- |
-| `type` | Always `admin_notification` |
-| `messageType` | Usually `text` |
-| `recipientType` | One of: `parent`, `driver`, `student`, `route` |
-| `timestamp` | Unix timestamp in milliseconds |
-| `source` | Always `admin_panel` |
+| `type` | `admin_notification` or `proximity_alert` |
+| `messageType` | `audio` (plays alert) or `text` (silent) |
+| `recipientType` | `parent`, `driver`, `student`, `route`, `class` |
+| `timestamp` | Unix timestamp |
 | `message` | The actual body text |
-
-### Firebase Topic Subscription:
-While the backend now uses direct token delivery for higher reliability, the app can still subscribe to these topics for mass messaging:
-*   `all_users`
-*   `parents`
-*   `drivers`
+| `trip_id` | (Optional) Link to active trip |
 
 ---
 
 ## 🛠 Troubleshooting
 
 1.  **"Firebase not initialized"**: 
-    *   Ensure `firebase-credentials.json` is in the project root.
-    *   Check if the JSON file has the correct `project_id`.
+    - Check `firebase-credentials.json` in root.
+    - Check if `GOOGLE_APPLICATION_CREDENTIALS` is set if running outside default environment.
 2.  **"No FCM tokens found"**:
-    *   The user must log in to the mobile app at least once to register their phone's token in the database.
-3.  **Notification not appearing**:
-    *   Check if the phone has "Notifications" enabled for the app.
-    *   The backend sends with `priority: high`, which should bypass battery optimization on Android.
+    - Ensure parents have logged into the app.
+    - Token registration happens automatically at `POST /api/v1/fcm-tokens` or `PUT /api/v1/parents/{id}/fcm-token`.
+3.  **Low Delivery Rate**:
+    - The backend uses `priority: high` and `android_channel_id: "high_importance_channel"`.
+    - Ensure the mobile app has defined this channel in its manifest.
