@@ -120,6 +120,15 @@ async def get_all_admins(status: UserStatus = UserStatus.ALL):
         admins = execute_query(query, (status.value,), fetch_all=True)
     return admins or []
 
+@router.get("/admins/phone-numbers/all", tags=["Admins"])
+async def get_all_admin_phone_numbers():
+    """GET: Retrieve all active admin phone numbers (flat list)"""
+    query = "SELECT phone FROM admins WHERE status = 'ACTIVE' AND phone IS NOT NULL"
+    results = execute_query(query, fetch_all=True)
+    # Convert set to sorted list to maintain consistency
+    phones = sorted(list({row['phone'] for row in results})) if results else []
+    return {"phone_numbers": phones, "count": len(phones)}
+
 
 @router.get("/admins/{admin_id}", response_model=AdminResponse, tags=["Admins"])
 async def get_admin(admin_id: str):

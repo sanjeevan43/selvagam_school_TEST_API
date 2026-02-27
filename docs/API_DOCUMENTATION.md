@@ -70,32 +70,37 @@ Authorization: Bearer <your_token_here>
 **Query Parameters**:
 - `status`: `ACTIVE`, `INACTIVE`, `ALL` (default)
 
-### 3. Get Admin by ID
+### 3. Get All Admin Phone Numbers
+**Endpoint**: `GET /admins/phone-numbers/all`
+**Description**: Retrieve a unique flat list of all active admin phone numbers.
+
+### 4. Get Admin by ID
 **Endpoint**: `GET /admins/{admin_id}`
 
-### 4. Update Admin Status
+### 5. Update Admin Status
 **Endpoint**: `PUT /admins/{admin_id}/status`
 **Request Body**: `{"status": "ACTIVE"}`
 
-### 5. Password Management
+### 6. Password Management
 - **Reset (Admin/ID)**: `PATCH /admins/{admin_id}/reset-password`
 - **Reset (By Phone)**: `PATCH /admins/reset-password-by-phone`
 - **Reset to Default**: `PATCH /admins/{admin_id}/reset-default-password` (Sets to First4Name@Last4Phone)
 
 ---
 
+---
+
+
 ## Parents
 
 ### 1. Create Parent
 **Endpoint**: `POST /parents`
-
 **Request Body**:
 ```json
 {
+  "name": "Parent Name",
   "phone": 9876543210,
   "email": "parent@example.com",
-  "name": "Parent Name",
-  "password": "securepass",
   "parent_role": "FATHER",
   "door_no": "123",
   "street": "Main Street",
@@ -104,22 +109,7 @@ Authorization: Bearer <your_token_here>
   "pincode": "600001"
 }
 ```
-
-**Parent Role Options**: `FATHER`, `MOTHER`, `GUARDIAN`
-
-
-## Parents
-
-### 1. Create Parent
-**Endpoint**: `POST /parents`
-**Request Body**:
-```json
-{
-  "name": "Parent Name",
-  "phone": 9876543210,
-  "email": "parent@example.com"
-}
-```
+*Note: Password is auto-generated and hashed by default. Default password is First4Name@Last4Phone.*
 
 ### 2. Update Parent FCM Token
 **Endpoint**: `PUT /parents/{parent_id}/fcm-token`

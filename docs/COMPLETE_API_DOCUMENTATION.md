@@ -44,6 +44,7 @@
 
 ## 👨‍💼 Admin APIs
 - `GET /admins` - List all admins
+- `GET /admins/phone-numbers/all` - Get all active admin phone numbers (flat list)
 - `PATCH /admins/{id}/reset-password` - Reset password (Admin override)
 - `PATCH /admins/{id}/reset-default-password` - Reset to auto-generated default
 
