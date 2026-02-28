@@ -91,12 +91,6 @@ class ProximityTrackingService:
             active_stop = next((s for s in stops if s['stop_order'] == current_order), None)
             next_stop = next((s for s in stops if s['stop_order'] == current_order + 1), None)
 
-            # --- 1. Handle Arrived Alert for Active Stop ---
-            if active_stop:
-                try:
-                    stop_loc = (float(active_stop['latitude']), float(active_stop['longitude']))
-                    dist = geodesic(current_loc, stop_loc).meters
-                    
             # DEACTIVATED: Distance-based triggering removed per user request.
             # All notifications are now handled strictly by stop-order in BusTrackingService.
             return {
