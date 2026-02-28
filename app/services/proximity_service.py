@@ -135,9 +135,9 @@ class ProximityTrackingService:
     async def start_trip(self, trip_id: str, route_id: str):
         """Manual Start Trip Logic - updates DB status to ONGOING"""
         try:
-            # Update trip status in DB
+            # Update trip status in DB, making sure to null out ended_at to satisfy CHECK constraints
             execute_query(
-                "UPDATE trips SET status = 'ONGOING', started_at = CURRENT_TIMESTAMP, updated_at = CURRENT_TIMESTAMP WHERE trip_id = %s",
+                "UPDATE trips SET status = 'ONGOING', started_at = CURRENT_TIMESTAMP, ended_at = NULL, updated_at = CURRENT_TIMESTAMP WHERE trip_id = %s",
                 (trip_id,)
             )
             logger.info(f"✅ Trip {trip_id} marked as ONGOING in DB")
