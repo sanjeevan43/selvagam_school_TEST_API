@@ -2860,25 +2860,23 @@ async def start_trip(trip_id: str):
         if result == 0:
             raise HTTPException(status_code=404, detail="Trip not found or already started")
         
-        # Notify all parents on this route concurrently
+        # Per strict order requirement: Only notify parents of the FIRST stop (Order 1)
         trip_data = await get_trip(trip_id)
-        students_query = """
-        SELECT s.student_id FROM students s
-        WHERE (s.pickup_route_id = %s OR s.drop_route_id = %s)
-        AND s.transport_status = 'ACTIVE'
-        AND s.student_status = 'CURRENT'
-        AND s.is_transport_user = True
-        """
-        students = execute_query(students_query, (trip_data['route_id'], trip_data['route_id']), fetch_all=True)
-        if students:
-            student_ids = [s['student_id'] for s in students]
+        first_stop_students = bus_tracking_service.get_students_for_route_stop(
+            trip_data['route_id'], 
+            1, 
+            trip_data['trip_type']
+        )
+        
+        if first_stop_students:
+            student_ids = [s['student_id'] for s in first_stop_students]
             parent_tokens = bus_tracking_service.get_parent_tokens_for_students(student_ids)
             if parent_tokens:
                 # Send notifications concurrently
                 tasks = [
                     notification_service.send_to_device(
                         title="Bus Trip Started",
-                        body=f"The bus trip for route '{trip_data['route_name']}' has started.",
+                        body=f"The bus has started! It is on the way to your stop ({first_stop_students[0]['stop_name']}).",
                         token=token,
                         recipient_type="parent",
                         message_type="trip_started"

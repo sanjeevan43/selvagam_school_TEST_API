@@ -106,12 +106,9 @@ class BusTrackingService:
             stops_passed = 0
             current_stop_info = None
             
-            # Find the NEXT stop in the sequence
-            next_stop = None
-            for stop in stops:
-                if stop['stop_order'] == current_stop_order + 1:
-                    next_stop = stop
-                    break
+            # Find the NEXT stop in the sequence (the one we are heading towards)
+            next_stop_order = current_stop_order + 1
+            next_stop = next((s for s in stops if s['stop_order'] == next_stop_order), None)
             
             if next_stop:
                 distance = self.calculate_distance(
@@ -119,24 +116,58 @@ class BusTrackingService:
                     float(next_stop['latitude']), float(next_stop['longitude'])
                 )
                 
-                # Update current stop if reached (within 0.3km)
+                # Check if we have REACHED the next stop (within 0.3km)
                 if distance <= 0.3:
+                    logger.info(f"📍 Stop Reached: {next_stop['stop_name']} (Order {next_stop_order})")
+                    
+                    # 1. Update Database to mark this stop as the current one
                     execute_query(
                         "UPDATE trips SET current_stop_order = %s, updated_at = CURRENT_TIMESTAMP WHERE trip_id = %s",
-                        (next_stop['stop_order'], trip_id)
+                        (next_stop_order, trip_id)
                     )
-                    current_stop_order = next_stop['stop_order']
+                    current_stop_order = next_stop_order
                     stops_passed = 1
                     current_stop_info = {
                         "stop_name": next_stop['stop_name'],
-                        "stop_order": next_stop['stop_order']
+                        "stop_order": next_stop_order
                     }
+
+                    # 2. TRIGGER NOTIFICATION FOR THE *FOLLOWING* STOP (Order + 1)
+                    # per user requirement: Reaching stop N notifies users of stop N+1
+                    following_stop_order = next_stop_order + 1
+                    following_stop = next((s for s in stops if s['stop_order'] == following_stop_order), None)
                     
-                    # NOTE: Stop arrival notifications are handled by ProximityService
-                    # to avoid duplicate messages. BusTrackingService only updates DB state.
-                    logger.info(f"Stop progression: reached {next_stop['stop_name']} (order {next_stop['stop_order']})")
+                    if following_stop:
+                        logger.info(f"🔔 Notifying next stop in sequence: {following_stop['stop_name']} (Order {following_stop_order})")
+                        
+                        # Fetch students/parents for the NEXT stop
+                        students = self.get_students_for_route_stop(
+                            trip['route_id'], 
+                            following_stop_order, 
+                            trip['trip_type']
+                        )
+                        
+                        if students:
+                            student_ids = [s['student_id'] for s in students]
+                            tokens = self.get_parent_tokens_for_students(student_ids)
+                            if tokens:
+                                await notification_service.broadcast_to_tokens(
+                                    list(set(tokens)),
+                                    "🚌 Bus Approaching",
+                                    f"The bus has reached {next_stop['stop_name']} and is coming to your stop next!",
+                                    {
+                                        "trip_id": trip_id,
+                                        "stop_name": following_stop['stop_name'],
+                                        "status": "APPROACHING",
+                                        "next_stop": following_stop['stop_name']
+                                    }
+                                )
                     
-                    # Manual completion only; auto-completion removed per user request.
+                    # Also notify parents of the CURRENT stop that it's here? 
+                    # The prompt says "Notification is sent ONLY to users of stop 4" when reaching 3.
+                    # This implies Stop 3 users don't get an alert when reaching 3? 
+                    # I'll stick to the "Next Stop" logic for now as it's the primary request.
+                    
                     trip_completed = False 
             
             return {
@@ -146,7 +177,7 @@ class BusTrackingService:
                 "current_stop_info": current_stop_info,
                 "stops_passed": stops_passed,
                 "trip_completed": trip_completed,
-                "message": "Trip completed!" if trip_completed else (f"Reached {current_stop_info['stop_name']}" if current_stop_info else "In transit")
+                "message": f"Reached {current_stop_info['stop_name']}" if current_stop_info else "In transit"
             }
             
         except Exception as e:

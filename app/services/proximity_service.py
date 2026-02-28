@@ -97,53 +97,13 @@ class ProximityTrackingService:
                     stop_loc = (float(active_stop['latitude']), float(active_stop['longitude']))
                     dist = geodesic(current_loc, stop_loc).meters
                     
-                    if dist <= ARRIVED_RADIUS:
-                        event_key = f"{active_stop['stop_id']}_arrived"
-                        if event_key not in current_notified:
-                            logger.info(f"✨ ARRIVED at {active_stop['stop_name']} (order {current_order})")
-                            current_notified.add(event_key)
-                            
-                            tokens = await self.get_stop_tokens(route_id, active_stop['stop_id'])
-                            if tokens:
-                                await notification_service.broadcast_to_tokens(
-                                    tokens, 
-                                    "🚌 Bus Arrived", 
-                                    f"The bus has arrived at {active_stop['stop_name']}.",
-                                    {"trip_id": trip_id, "stop_id": active_stop['stop_id'], "status": "ARRIVED", "stop_name": active_stop['stop_name']}
-                                )
-                            results.append(f"Arrived: {active_stop['stop_name']}")
-                except (TypeError, ValueError) as e:
-                    logger.warning(f"Coordinate error for active stop {active_stop['stop_name']}: {e}")
-
-            # --- 2. Handle Approaching Alert for NEXT Stop ---
-            if next_stop:
-                try:
-                    stop_loc = (float(next_stop['latitude']), float(next_stop['longitude']))
-                    dist = geodesic(current_loc, stop_loc).meters
-                    
-                    if dist <= APPROACHING_RADIUS:
-                        event_key = f"{next_stop['stop_id']}_approaching"
-                        if event_key not in current_notified:
-                            logger.info(f"🔔 APPROACHING {next_stop['stop_name']} (order {current_order + 1})")
-                            current_notified.add(event_key)
-                            
-                            tokens = await self.get_stop_tokens(route_id, next_stop['stop_id'])
-                            if tokens:
-                                await notification_service.broadcast_to_tokens(
-                                    tokens, 
-                                    "🚌 Bus Approaching", 
-                                    f"The bus is approaching {next_stop['stop_name']}. Please be ready.",
-                                    {"trip_id": trip_id, "stop_id": next_stop['stop_id'], "status": "APPROACHING", "stop_name": next_stop['stop_name']}
-                                )
-                            results.append(f"Approaching: {next_stop['stop_name']}")
-                except (TypeError, ValueError) as e:
-                    logger.warning(f"Coordinate error for next stop {next_stop['stop_name']}: {e}")
-
+            # DEACTIVATED: Distance-based triggering removed per user request.
+            # All notifications are now handled strictly by stop-order in BusTrackingService.
             return {
                 "success": True, 
                 "trip_id": trip_id, 
                 "current_order": current_order,
-                "notifications_sent": results
+                "notifications_sent": []
             }
             
         except Exception as e:
