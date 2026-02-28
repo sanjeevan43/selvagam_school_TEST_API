@@ -2851,8 +2851,6 @@ async def start_trip(trip_id: str):
         UPDATE trips SET 
         status = 'ONGOING', 
         started_at = CURRENT_TIMESTAMP,
-        ended_at = NULL,
-        current_stop_order = 0,
         updated_at = CURRENT_TIMESTAMP 
         WHERE trip_id = %s AND status = 'NOT_STARTED'
         """
