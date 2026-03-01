@@ -11,7 +11,8 @@ logger = logging.getLogger(__name__)
 
 class BusTrackingService:
     def __init__(self):
-        pass
+        # Track if the 500m notification for the first stop has been sent for a trip
+        self.notified_first_stop_500m: Dict[str, bool] = {}
         
     def calculate_distance(self, lat1: float, lon1: float, lat2: float, lon2: float) -> float:
         """Calculate distance between two points in kilometers"""
@@ -108,6 +109,30 @@ class BusTrackingService:
             
             # Check all upcoming stops for progression (allowing for missed pings)
             upcoming_stops = [s for s in stops if s['stop_order'] > current_stop_order]
+            
+            # --- Logic for First Stop 500m Alert ---
+            if current_stop_order < 1:
+                first_stop = next((s for s in stops if s['stop_order'] == 1), None)
+                if first_stop and trip_id not in self.notified_first_stop_500m:
+                    dist_to_first = self.calculate_distance(
+                        latitude, longitude,
+                        float(first_stop['latitude']), float(first_stop['longitude'])
+                    )
+                    if dist_to_first <= 0.5: # 500m
+                        logger.info(f"🔔 Notifying first stop 500m alert: {first_stop['stop_name']}")
+                        students = self.get_students_for_route_stop(trip['route_id'], 1, trip['trip_type'])
+                        if students:
+                            student_ids = [st['student_id'] for st in students]
+                            tokens = self.get_parent_tokens_for_students(student_ids)
+                            if tokens:
+                                await notification_service.broadcast_to_tokens(
+                                    list(set(tokens)),
+                                    "🚌 Bus Upcoming",
+                                    "Your bus will reach in few minutes",
+                                    {"trip_id": trip_id, "stop_name": first_stop['stop_name'], "status": "UPCOMING"}
+                                )
+                        self.notified_first_stop_500m[trip_id] = True
+            # ----------------------------------------
             
             for stop in upcoming_stops:
                 distance = self.calculate_distance(
