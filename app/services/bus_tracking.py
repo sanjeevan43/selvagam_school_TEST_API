@@ -156,7 +156,7 @@ class BusTrackingService:
                             await notification_service.broadcast_to_tokens(
                                 list(set(tokens)),
                                 "🚌 Bus Approaching",
-                                "Your school bus has arrived at the previous stop.",
+                                f"Your bus reached on {stop['stop_name']}",
                                 {"trip_id": trip_id, "stop_name": stop['stop_name'], "status": "APPROACHING"}
                             )
 
@@ -171,7 +171,7 @@ class BusTrackingService:
                             await notification_service.broadcast_to_tokens(
                                 list(set(tokens)),
                                 "🚌 Bus Upcoming",
-                                "Your bus will arrive in X minutes.",
+                                f"Your bus reached this stop ({stop['stop_name']})",
                                 {"trip_id": trip_id, "status": "UPCOMING"}
                             )
                     
