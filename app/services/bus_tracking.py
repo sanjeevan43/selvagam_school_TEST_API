@@ -11,8 +11,7 @@ logger = logging.getLogger(__name__)
 
 class BusTrackingService:
     def __init__(self):
-        # Track if the 500m notification for the first stop has been sent for a trip
-        self.notified_first_stop_500m: Dict[str, bool] = {}
+        pass
         
     def calculate_distance(self, lat1: float, lon1: float, lat2: float, lon2: float) -> float:
         """Calculate distance between two points in kilometers"""
@@ -103,17 +102,11 @@ class BusTrackingService:
                 return {"success": False, "message": "No stops with coordinates found"}
             
             current_stop_order = trip['current_stop_order']
-            trip_completed = False
-            stops_passed = 0
-            current_stop_info = None
             
-            # Check all upcoming stops for progression (allowing for missed pings)
-            upcoming_stops = [s for s in stops if s['stop_order'] > current_stop_order]
-            
-            # --- Logic for First Stop 500m Alert ---
-            if current_stop_order < 1:
+            # --- Logic for First Stop 500m Alert (Stored in DB) ---
+            if current_stop_order < 1 and not trip['first_stop_notified']:
                 first_stop = next((s for s in stops if s['stop_order'] == 1), None)
-                if first_stop and trip_id not in self.notified_first_stop_500m:
+                if first_stop:
                     dist_to_first = self.calculate_distance(
                         latitude, longitude,
                         float(first_stop['latitude']), float(first_stop['longitude'])
@@ -122,100 +115,76 @@ class BusTrackingService:
                         logger.info(f"🔔 Notifying first stop 500m alert: {first_stop['stop_name']}")
                         students = self.get_students_for_route_stop(trip['route_id'], 1, trip['trip_type'])
                         if students:
-                            student_ids = [st['student_id'] for st in students]
-                            tokens = self.get_parent_tokens_for_students(student_ids)
-                            if tokens:
-                                await notification_service.broadcast_to_tokens(
-                                    list(set(tokens)),
-                                    "🚌 Bus Upcoming",
-                                    "Your bus will reach in few minutes",
-                                    {"trip_id": trip_id, "stop_name": first_stop['stop_name'], "status": "UPCOMING"}
-                                )
-                        self.notified_first_stop_500m[trip_id] = True
-            # ----------------------------------------
+                            await self._broadcast_helper(students, "🚌 Bus Upcoming", "Your bus will reach in few minutes", {"trip_id": trip_id, "stop_name": first_stop['stop_name'], "status": "UPCOMING"})
+                        
+                        execute_query("UPDATE trips SET first_stop_notified = True WHERE trip_id = %s", (trip_id,))
             
-            for stop in upcoming_stops:
+            # --- Strict Sequential Stop Logic ---
+            # Only consider the NEXT stop in order
+            target_order = current_stop_order + 1
+            next_stop = next((s for s in stops if s['stop_order'] == target_order), None)
+            
+            stops_passed = 0
+            current_stop_info = None
+
+            if next_stop:
                 distance = self.calculate_distance(
                     latitude, longitude, 
-                    float(stop['latitude']), float(stop['longitude'])
+                    float(next_stop['latitude']), float(next_stop['longitude'])
                 )
                 
-                # Check if we have REACHED this stop (within 0.05km / 50m)
+                # Check if we have REACHED the NEXT stop (within 50m)
                 if distance <= 0.05:
-                    logger.info(f"📍 Stop Reached: {stop['stop_name']} (Order {stop['stop_order']})")
+                    logger.info(f"📍 Next Stop Reached: {next_stop['stop_name']} (Order {target_order})")
                     
-                    # 1. Update Database to mark this stop as the current one
+                    # 1. Update Database
                     execute_query(
                         "UPDATE trips SET current_stop_order = %s, updated_at = CURRENT_TIMESTAMP WHERE trip_id = %s",
-                        (stop['stop_order'], trip_id)
+                        (target_order, trip_id)
                     )
-                    current_stop_order = stop['stop_order']
-                    stops_passed += 1
-                    current_stop_info = {
-                        "stop_name": stop['stop_name'],
-                        "stop_order": stop['stop_order']
-                    }
+                    current_stop_order = target_order
+                    stops_passed = 1
+                    current_stop_info = {"stop_name": next_stop['stop_name'], "stop_order": target_order}
 
-                    # A. Arrival Notification (Stop N)
-                    logger.info(f"🔔 Notifying arrival at stop: {stop['stop_name']} (Order {stop['stop_order']})")
-                    students_N = self.get_students_for_route_stop(trip['route_id'], stop['stop_order'], trip['trip_type'])
+                    # 2. Sequential Notifications
+                    # A. Arrival Notification for current stop (Stop N)
+                    students_N = self.get_students_for_route_stop(trip['route_id'], target_order, trip['trip_type'])
                     if students_N:
-                        student_ids = [st['student_id'] for st in students_N]
-                        tokens = self.get_parent_tokens_for_students(student_ids)
-                        if tokens:
-                            await notification_service.broadcast_to_tokens(
-                                list(set(tokens)),
-                                "🚌 Bus Arrived",
-                                "Your bus has arrived at your stop.",
-                                {"trip_id": trip_id, "stop_name": stop['stop_name'], "status": "ARRIVED"}
-                            )
+                        await self._broadcast_helper(students_N, "🚌 Bus Arrived", "Your bus has arrived at your stop.", {"trip_id": trip_id, "stop_name": next_stop['stop_name'], "status": "ARRIVED"})
 
-                    # B. Before Stop Notification (Stop N + 1)
-                    next_order = stop['stop_order'] + 1
-                    logger.info(f"🔔 Notifying before stop for order {next_order}")
-                    students_N1 = self.get_students_for_route_stop(trip['route_id'], next_order, trip['trip_type'])
+                    # B. Approaching Notification for the future next stop (Stop N + 1)
+                    next_next_order = target_order + 1
+                    students_N1 = self.get_students_for_route_stop(trip['route_id'], next_next_order, trip['trip_type'])
                     if students_N1:
-                        student_ids = [st['student_id'] for st in students_N1]
-                        tokens = self.get_parent_tokens_for_students(student_ids)
-                        if tokens:
-                            await notification_service.broadcast_to_tokens(
-                                list(set(tokens)),
-                                "🚌 Bus Approaching",
-                                f"Your bus reached on {stop['stop_name']}",
-                                {"trip_id": trip_id, "stop_name": stop['stop_name'], "status": "APPROACHING"}
-                            )
+                        await self._broadcast_helper(students_N1, "🚌 Bus Approaching", f"Your bus reached on {next_stop['stop_name']}", {"trip_id": trip_id, "stop_name": next_stop['stop_name'], "status": "APPROACHING"})
 
-                    # C. Upcoming Arrival Notification (Stop N + 2)
-                    upcoming_order = stop['stop_order'] + 2
-                    logger.info(f"🔔 Notifying upcoming arrival for order {upcoming_order}")
+                    # C. Upcoming Notification for Stop N + 2
+                    upcoming_order = target_order + 2
                     students_N2 = self.get_students_for_route_stop(trip['route_id'], upcoming_order, trip['trip_type'])
                     if students_N2:
-                        student_ids = [st['student_id'] for st in students_N2]
-                        tokens = self.get_parent_tokens_for_students(student_ids)
-                        if tokens:
-                            await notification_service.broadcast_to_tokens(
-                                list(set(tokens)),
-                                "🚌 Bus Upcoming",
-                                f"Your bus reached this stop ({stop['stop_name']})",
-                                {"trip_id": trip_id, "status": "UPCOMING"}
-                            )
-                    
-                    # Prevent processing multiple stops in one ping
-                    break
-            
+                        await self._broadcast_helper(students_N2, "🚌 Bus Upcoming", f"Your bus reached this stop ({next_stop['stop_name']})", {"trip_id": trip_id, "status": "UPCOMING"})
+
             return {
                 "success": True,
                 "trip_id": trip_id,
                 "current_stop_order": current_stop_order,
                 "current_stop_info": current_stop_info,
                 "stops_passed": stops_passed,
-                "trip_completed": False,  # Manual completion only
+                "trip_completed": False,
                 "message": f"Reached {current_stop_info['stop_name']}" if current_stop_info else "In transit"
             }
             
         except Exception as e:
             logger.error(f"Bus location processing error: {e}")
             return {"success": False, "error": str(e)}
+
+    async def _broadcast_helper(self, students: List[Dict], title: str, body: str, data: Dict):
+        """Helper to broadcast notifications asynchronously"""
+        student_ids = [st['student_id'] for st in students]
+        tokens = self.get_parent_tokens_for_students(student_ids)
+        if tokens:
+            await notification_service.broadcast_to_tokens(list(set(tokens)), title, body, data)
+
     
     def update_route_fcm_cache(self, route_id: str):
         """Update FCM token cache for route stops"""
