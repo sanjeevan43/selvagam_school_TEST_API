@@ -30,7 +30,7 @@ class Settings(BaseSettings):
     GEOFENCE_RADIUS: int = 500
     # Upload Configuration
     UPLOAD_DIR: str = "uploads"
-    BASE_URL: str = "https://api.selvagam.com"
+    BASE_URL: str = "http://localhost:8085"
     
     class Config:
         env_file = ".env"

@@ -15,8 +15,7 @@ app = FastAPI(
     title="School Transport Management API",
     version="1.0.0",
     servers=[
-        {"url": "https://api.selvagam.com", "description": "Production Server"},
-        {"url": "http://localhost:8080", "description": "Local Development"}
+        {"url": f"http://localhost:{settings.API_PORT}", "description": "New Test API Server"}
     ],
     docs_url="/docs",
     redoc_url="/redoc",
