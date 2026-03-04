@@ -14,9 +14,6 @@ logging.basicConfig(level=logging.INFO)
 app = FastAPI(
     title="School Transport Management API",
     version="1.0.0",
-    servers=[
-        {"url": f"http://localhost:{settings.API_PORT}", "description": "New Test API Server"}
-    ],
     docs_url="/docs",
     redoc_url="/redoc",
     openapi_tags=[
