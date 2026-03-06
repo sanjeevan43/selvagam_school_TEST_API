@@ -145,11 +145,33 @@ class BusTrackingService:
                 target_order = arrived_stop['stop_order']
                 logger.info(f"📍 Stop Reached: {arrived_stop['stop_name']} (Order {target_order})")
                 
-                # 1. Update Database (skips over previous stops automatically)
-                execute_query(
-                    "UPDATE trips SET current_stop_order = %s, updated_at = CURRENT_TIMESTAMP WHERE trip_id = %s",
-                    (target_order, trip_id)
-                )
+                # 1. Update Database (skips over previous stops automatically and updates stop_logs)
+                new_stop_logs = []
+                if trip.get('stop_logs'):
+                    try:
+                        import json
+                        current_logs = trip['stop_logs']
+                        if isinstance(current_logs, str):
+                            current_logs = json.loads(current_logs)
+                        
+                        if isinstance(current_logs, list):
+                            for entry in current_logs:
+                                # Update reached stop AND skip over any prior stops missed by the GPS ping
+                                if entry['stop_order'] <= target_order and entry['arrived_at'] is None:
+                                    entry['arrived_at'] = datetime.now().isoformat()
+                            new_stop_logs = current_logs
+                    except Exception as json_err:
+                        logger.error(f"Error updating stop_logs JSON: {json_err}")
+                        new_stop_logs = None
+
+                update_query = """
+                UPDATE trips SET 
+                    current_stop_order = %s, 
+                    stop_logs = %s,
+                    updated_at = CURRENT_TIMESTAMP 
+                WHERE trip_id = %s
+                """
+                execute_query(update_query, (target_order, json.dumps(new_stop_logs) if new_stop_logs else trip.get('stop_logs'), trip_id))
                 
                 stops_passed = target_order - current_stop_order
                 current_stop_order = target_order

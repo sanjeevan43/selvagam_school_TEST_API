@@ -127,16 +127,32 @@ class ProximityTrackingService:
             return []
 
     async def start_trip(self, trip_id: str, route_id: str):
-        """Manual Start Trip Logic - updates DB status to ONGOING"""
+        """Manual Start Trip Logic - updates DB status to ONGOING and initializes stop_logs"""
         try:
-            # Update trip status in DB, making sure to null out ended_at to satisfy CHECK constraints
+            # Fetch trip_type to know which order field to use
+            trip_info = execute_query("SELECT trip_type FROM trips WHERE trip_id = %s", (trip_id,), fetch_one=True)
+            trip_type = trip_info['trip_type'] if trip_info else "PICKUP"
+            
+            # Fetch stops for this route to initialize stop_logs
+            stops = await self.fetch_route_stops(route_id, trip_type)
+            stop_logs = [
+                {
+                    "stop_id": s['stop_id'],
+                    "stop_name": s['stop_name'],
+                    "stop_order": s['stop_order'],
+                    "arrived_at": None
+                } for s in stops
+            ]
+            import json
+            
+            # Update trip status in DB and initialize stop_logs
             execute_query(
-                "UPDATE trips SET status = 'ONGOING', started_at = CURRENT_TIMESTAMP, ended_at = NULL, updated_at = CURRENT_TIMESTAMP WHERE trip_id = %s",
-                (trip_id,)
+                "UPDATE trips SET status = 'ONGOING', started_at = CURRENT_TIMESTAMP, ended_at = NULL, stop_logs = %s, updated_at = CURRENT_TIMESTAMP WHERE trip_id = %s",
+                (json.dumps(stop_logs), trip_id)
             )
-            logger.info(f"✅ Trip {trip_id} marked as ONGOING in DB")
+            logger.info(f"✅ Trip {trip_id} marked as ONGOING in DB with initialized stop_logs")
         except Exception as e:
-            logger.error(f"Failed to update trip status to ONGOING: {e}")
+            logger.error(f"Failed to update trip status or initialize stop_logs: {e}")
 
         tokens = await self.fetch_tokens_by_route(route_id)
         if tokens:

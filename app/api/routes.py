@@ -2268,6 +2268,15 @@ async def get_trip(trip_id: str):
     trip = execute_query(query, (trip_id,), fetch_one=True)
     if not trip:
         raise HTTPException(status_code=404, detail="Trip not found")
+    
+    # Process JSON fields if they come back as strings (common with some MySQL drivers)
+    if trip.get('stop_logs') and isinstance(trip['stop_logs'], str):
+        try:
+            import json
+            trip['stop_logs'] = json.loads(trip['stop_logs'])
+        except:
+            trip['stop_logs'] = []
+            
     return trip
 
 @router.get("/trips/ongoing/all", response_model=List[TripResponse], tags=["Trips"])
@@ -2338,6 +2347,29 @@ async def skip_future_stop(trip_id: str, stop_order: int):
     if not result.get("success"):
         raise HTTPException(status_code=400, detail=result.get("message", "Failed to exclude stop"))
     return result
+
+@router.get("/trips/{trip_id}/stop-logs", tags=["Trips"])
+async def get_trip_stop_logs(trip_id: str):
+    """GET: Returns the current stop logs (JSON list) for any trip"""
+    query = "SELECT stop_logs FROM trips WHERE trip_id = %s"
+    result = execute_query(query, (trip_id,), fetch_one=True)
+    if not result:
+        raise HTTPException(status_code=404, detail="Trip not found")
+    
+    stop_logs = result.get('stop_logs')
+    if stop_logs is None:
+        return []
+    
+    # If it's already a list (DictCursor and pymysql usually handle JSON columns)
+    if isinstance(stop_logs, list):
+        return stop_logs
+        
+    # Fallback to manual parsing if it's a string
+    try:
+        import json
+        return json.loads(stop_logs)
+    except:
+        return []
 
 @router.delete("/trips/{trip_id}", tags=["Trips"])
 async def delete_trip(trip_id: str):
