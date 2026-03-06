@@ -340,6 +340,7 @@ class ClassResponse(BaseModel):
 class RouteStopBase(BaseModel):
     route_id: str
     stop_name: str = Field(..., max_length=100)
+    location: Optional[str] = Field(None, max_length=100)
     latitude: Optional[float] = Field(None, ge=-90, le=90)
     longitude: Optional[float] = Field(None, ge=-180, le=180)
     pickup_stop_order: int
@@ -357,6 +358,7 @@ class RouteStopCreate(RouteStopBase):
 
 class RouteStopUpdate(BaseModel):
     stop_name: Optional[str] = Field(None, max_length=100)
+    location: Optional[str] = Field(None, max_length=100)
     latitude: Optional[float] = Field(None, ge=-90, le=90)
     longitude: Optional[float] = Field(None, ge=-180, le=180)
     pickup_stop_order: Optional[int] = None
@@ -366,6 +368,7 @@ class RouteStopResponse(BaseModel):
     stop_id: str
     route_id: str
     stop_name: str = Field(..., max_length=100)
+    location: Optional[str] = None
     latitude: Optional[float] = Field(None, ge=-90, le=90)
     longitude: Optional[float] = Field(None, ge=-180, le=180)
     pickup_stop_order: int
@@ -656,3 +659,19 @@ class PasswordResetByPhone(BaseModel):
 class PasswordUpdate(BaseModel):
     new_password: str = Field(..., min_length=1, max_length=72, description="New user password")
     old_password: Optional[str] = Field(None, description="Current user password")
+
+# Admin Parent Notification Models
+class AdminParentNotificationBase(BaseModel):
+    title: str = Field(..., max_length=150)
+    message: str
+    student_id: Optional[str] = None
+    sent_by_admin_id: str
+
+class AdminParentNotificationCreate(AdminParentNotificationBase):
+    pass
+
+class AdminParentNotificationResponse(AdminParentNotificationBase):
+    notification_id: str
+    created_at: datetime
+
+    model_config = ConfigDict(from_attributes=True)

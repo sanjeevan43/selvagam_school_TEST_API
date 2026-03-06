@@ -242,6 +242,62 @@ async def reset_admin_default_password(admin_id: str):
         raise HTTPException(status_code=500, detail=f"Failed to reset admin password: {str(e)}")
 
 # =====================================================
+# ADMIN PARENT NOTIFICATION ENDPOINTS (Tracking History)
+# =====================================================
+
+@router.post("/admin-parent-notifications", response_model=AdminParentNotificationResponse, tags=["Admin Parent Notifications"])
+async def create_admin_parent_notification(notification: AdminParentNotificationCreate):
+    """Save a record of a notification sent by an admin to parents/students"""
+    try:
+        notification_id = str(uuid.uuid4())
+        query = """
+        INSERT INTO admin_parent_notifications (notification_id, title, message, student_id, sent_by_admin_id)
+        VALUES (%s, %s, %s, %s, %s)
+        """
+        execute_query(query, (notification_id, notification.title, notification.message, 
+                             notification.student_id, notification.sent_by_admin_id))
+        
+        return await get_admin_parent_notification(notification_id)
+    except Exception as e:
+        logger.error(f"Create admin parent notification error: {e}")
+        raise HTTPException(status_code=400, detail=f"Failed to create notification record: {str(e)}")
+
+@router.get("/admin-parent-notifications/student/{student_id}", response_model=List[AdminParentNotificationResponse], tags=["Admin Parent Notifications"])
+async def get_notifications_by_student(student_id: str):
+    """Retrieve full history of notifications sent to a specific student"""
+    query = "SELECT * FROM admin_parent_notifications WHERE student_id = %s ORDER BY created_at DESC"
+    notifications = execute_query(query, (student_id,), fetch_all=True)
+    return notifications or []
+
+@router.get("/admin-parent-notifications/parent/{parent_id}", response_model=List[AdminParentNotificationResponse], tags=["Admin Parent Notifications"])
+async def get_notifications_by_parent(parent_id: str):
+    """Retrieve history for all students belonging to a specific parent"""
+    query = """
+    SELECT n.* FROM admin_parent_notifications n
+    JOIN students s ON n.student_id = s.student_id
+    WHERE s.parent_id = %s OR s.s_parent_id = %s
+    ORDER BY n.created_at DESC
+    """
+    notifications = execute_query(query, (parent_id, parent_id), fetch_all=True)
+    return notifications or []
+
+@router.get("/admin-parent-notifications/admin/{admin_id}", response_model=List[AdminParentNotificationResponse], tags=["Admin Parent Notifications"])
+async def get_notifications_by_admin(admin_id: str):
+    """Show all notifications a specific administrator has sent"""
+    query = "SELECT * FROM admin_parent_notifications WHERE sent_by_admin_id = %s ORDER BY created_at DESC"
+    notifications = execute_query(query, (admin_id,), fetch_all=True)
+    return notifications or []
+
+@router.get("/admin-parent-notifications/{notification_id}", response_model=AdminParentNotificationResponse, tags=["Admin Parent Notifications"])
+async def get_admin_parent_notification(notification_id: str):
+    """Get details of a single notification record"""
+    query = "SELECT * FROM admin_parent_notifications WHERE notification_id = %s"
+    notification = execute_query(query, (notification_id,), fetch_one=True)
+    if not notification:
+        raise HTTPException(status_code=404, detail="Notification record not found")
+    return notification
+
+# =====================================================
 # PARENT ENDPOINTS
 # =====================================================
 
@@ -949,12 +1005,12 @@ async def create_route_stop(route_stop: RouteStopCreate):
                 # 7. Insert new stop with provided orders
                 stop_id = str(uuid.uuid4())
                 insert_query = """
-                INSERT INTO route_stops (stop_id, route_id, stop_name, latitude, longitude, 
+                INSERT INTO route_stops (stop_id, route_id, stop_name, location, latitude, longitude, 
                                        pickup_stop_order, drop_stop_order)
-                VALUES (%s, %s, %s, %s, %s, %s, %s)
+                VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
                 """
                 cursor.execute(insert_query, (
-                    stop_id, route_id, route_stop.stop_name, 
+                    stop_id, route_id, route_stop.stop_name, route_stop.location,
                     route_stop.latitude, route_stop.longitude, 
                     new_pickup, new_drop
                 ))
@@ -2516,13 +2572,26 @@ async def get_fcm_tokens_by_student(student_id: str):
     fcm_tokens = list({row['fcm_token'] for row in token_results}) if token_results else []
     return {"fcm_tokens": fcm_tokens}
 
-@router.get("/fcm-tokens/by-parent/{parent_id}", tags=["FCM Tokens"])
+@router.get("/parents/{parent_id}/fcm-tokens", response_model=List[FCMTokenResponse], tags=["FCM Tokens"])
 async def get_fcm_tokens_by_parent(parent_id: str):
     """Get unique FCM tokens registered for a specific parent"""
-    query = "SELECT DISTINCT fcm_token FROM fcm_tokens WHERE parent_id = %s"
-    token_results = execute_query(query, (parent_id,), fetch_all=True)
-    fcm_tokens = list({row['fcm_token'] for row in token_results}) if token_results else []
-    return {"fcm_tokens": fcm_tokens}
+    query = "SELECT * FROM fcm_tokens WHERE parent_id = %s"
+    tokens = execute_query(query, (parent_id,), fetch_all=True)
+    return tokens or []
+
+@router.get("/fcm-tokens/by-location/{location}", tags=["FCM Tokens"])
+async def get_fcm_tokens_by_location(location: str):
+    """Searches for all students and parents who are registered at a stop with a specific location name"""
+    query = """
+    SELECT DISTINCT ft.fcm_token 
+    FROM fcm_tokens ft
+    JOIN students s ON (ft.student_id = s.student_id OR ft.parent_id = s.parent_id OR ft.parent_id = s.s_parent_id)
+    JOIN route_stops rs ON (s.pickup_stop_id = rs.stop_id OR s.drop_stop_id = rs.stop_id)
+    WHERE rs.location = %s AND ft.fcm_token IS NOT NULL
+    """
+    token_results = execute_query(query, (location,), fetch_all=True)
+    tokens = list({row['fcm_token'] for row in token_results}) if token_results else []
+    return {"fcm_tokens": tokens, "count": len(tokens)}
 
 @router.get("/fcm-tokens/by-class/{class_id}", tags=["FCM Tokens"])
 async def get_fcm_tokens_by_class(class_id: str):
