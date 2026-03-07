@@ -1,0 +1,106 @@
+
+--- Testing Get All Trips (GET /trips) ---
+Status Code: 200
+Count: 29
+First item: {
+  "trip_id": "01250793-ae20-4f32-8ace-cf65eae86207",
+  "bus_id": "52c67716-8234-45b5-bfdb-153e4f788685",
+  "driver_id": "e3d16034-6cbc-4678-8db7-2ceff58025f6",
+  "route_id": "c4f616e3-fb89-4832-8707-eac8422144a7",
+  "trip_date": "2026-03-06",
+  "trip_type": "PICKUP",
+  "status": "COMPLETED",
+  "current_stop_order": 0,
+  "skipped_stops": null,
+  "stop_logs": [
+    {
+      "stop_id": "9d4ef50c-325d-4b46-99f3-5f6984570da2",
+      "stop_name": "test",
+      "arrived_at": null,
+      "stop_order": 1
+    },
+    {
+      "stop_id": "76bd3cbb-be2b-4ae9-8fe7-29c00f8495e6",
+      "stop_name": "Kovilur",
+      "arrived_at": null,
+      "stop_order": 2
+    },
+    {
+      "stop_id": "5545834a-69ce-4afa-a686-b43c6464dfef",
+      "stop_name": "kovilur 2",
+      "arrived_at": null,
+      "stop_order": 3
+    },
+    {
+      "stop_id": "a0b20706-8aa3-423a-bb22-f4ef5b392201",
+      "stop_name": "helmet shop",
+      "arrived_at": null,
+      "stop_order": 4
+    },
+    {
+      "stop_id": "fc895ac1-7060-4a3a-b38e-8b0f19c52d37",
+      "stop_name": "first beet",
+      "arrived_at": null,
+      "stop_order": 5
+    },
+    {
+      "stop_id": "cdad8fa9-9be1-4696-9cdf-a369beb245d7",
+      "stop_name": "kalani vaasal",
+      "arrived_at": null,
+      "stop_order": 6
+    }
+  ],
+  "started_at": "2026-03-06T15:57:45",
+  "ended_at": "2026-03-06T15:58:22",
+  "created_at": "2026-03-06T15:57:44",
+  "updated_at": "2026-03-06T15:58:22"
+}
+
+--- Testing Get Single Trip (GET /trips/6348b2c4-f060-4405-b56c-602460d7e543) ---
+Status Code: 200
+Response: {
+  "trip_id": "6348b2c4-f060-4405-b56c-602460d7e543",
+  "bus_id": "1071a9cb-2789-4104-94b4-8b3d1f540ed8",
+  "driver_id": "56bda442-ec90-4511-ae55-ce25b15a2b5a",
+  "route_id": "e08438dc-de52-47c7-928c-d837b7751ca9",
+  "trip_date": "2026-03-04",
+  "trip_type": "DROP",
+  "status": "COMPLETED",
+  "current_stop_order": 0,
+  "skipped_stops": null,
+  "stop_logs": null,
+  "started_at": "2026-03-05T13:26:39",
+  "ended_at": "2026-03-05T13:27:06",
+  "created_at": "2026-03-04T08:23:34",
+  "updated_at": "2026-03-05T13:27:06"
+}
+
+--- Testing Create Notification (POST /admin-parent-notifications) ---
+Status Code: 200
+Response: {
+  "title": "Test Title",
+  "message": "Test Message",
+  "student_id": "6e4c5102-20a6-413b-8ffc-7ad5d662f228",
+  "sent_by_admin_id": "5081a93e-1533-4932-bf34-cd5b33a3606e",
+  "notification_id": "b7156903-b30b-4443-a653-fea5b360ea4c",
+  "created_at": "2026-03-06T17:53:41"
+}
+
+--- Testing Get Notifs by Student (GET /admin-parent-notifications/student/6e4c5102-20a6-413b-8ffc-7ad5d662f228) ---
+Status Code: 200
+Count: 4
+First item: {
+  "title": "Test Title",
+  "message": "Test Message",
+  "student_id": "6e4c5102-20a6-413b-8ffc-7ad5d662f228",
+  "sent_by_admin_id": "5081a93e-1533-4932-bf34-cd5b33a3606e",
+  "notification_id": "b7156903-b30b-4443-a653-fea5b360ea4c",
+  "created_at": "2026-03-06T17:53:41"
+}
+
+--- Testing Get FCM Tokens by Location (GET /fcm-tokens/by-location/test) ---
+Status Code: 200
+Response: {
+  "fcm_tokens": [],
+  "count": 0
+}
