@@ -2239,17 +2239,27 @@ async def delete_student(student_id: str):
 
 
 def _format_trip_logs(trip):
-    """Helper to parse JSON fields for a single trip dict"""
+    """Helper to parse JSON fields for a single trip dict and handle legacy format"""
     if not trip:
         return trip
-    if 'stop_logs' in trip and isinstance(trip['stop_logs'], str):
+    
+    logs = trip.get('stop_logs')
+    if isinstance(logs, str):
         try:
             import json
-            trip['stop_logs'] = json.loads(trip['stop_logs'])
+            logs = json.loads(logs)
         except:
-            trip['stop_logs'] = {}
-    elif 'stop_logs' not in trip:
-        trip['stop_logs'] = None
+            logs = {}
+    
+    # Handle legacy list format: [{stop_id, arrived_at, ...}] -> {stop_id: arrived_at}
+    if isinstance(logs, list):
+        new_logs = {}
+        for entry in logs:
+            if isinstance(entry, dict) and 'stop_id' in entry:
+                new_logs[entry['stop_id']] = entry.get('arrived_at')
+        logs = new_logs
+    
+    trip['stop_logs'] = logs if isinstance(logs, dict) else {}
     return trip
 
 def _format_trips_logs(trips):

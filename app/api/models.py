@@ -1,6 +1,6 @@
 ﻿import re
 from pydantic import BaseModel, EmailStr, Field, validator, ConfigDict, field_validator
-from typing import Optional, Literal
+from typing import Optional, Literal, Any
 from datetime import date, datetime
 from enum import Enum
 
@@ -515,7 +515,7 @@ class TripResponse(BaseModel):
     status: TripStatus
     current_stop_order: int
     skipped_stops: Optional[str] = None
-    stop_logs: Optional[dict] = None
+    stop_logs: Any = None
     started_at: Optional[datetime] = None
     ended_at: Optional[datetime] = None
     created_at: datetime
