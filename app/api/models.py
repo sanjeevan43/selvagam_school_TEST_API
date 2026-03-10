@@ -82,6 +82,15 @@ class TripStatus(str, Enum):
     CANCELED = "CANCELED"
     ALL = "ALL"
 
+class AppType(str, Enum):
+    PARENT = "PARENT"
+    DRIVER = "DRIVER"
+    ADMIN = "ADMIN"
+
+class Platform(str, Enum):
+    ANDROID = "ANDROID"
+    IOS = "IOS"
+
 class ActiveFilter(str, Enum):
     ALL = "ALL"
     ACTIVE_ONLY = "ACTIVE_ONLY"
@@ -676,3 +685,15 @@ class AdminParentNotificationResponse(AdminParentNotificationBase):
     created_at: datetime
 
     model_config = ConfigDict(from_attributes=True)
+
+# App Versioning Models
+class AppVersionCheckRequest(BaseModel):
+    app_type: AppType
+    platform: Platform
+    app_version: str
+
+class AppVersionCheckResponse(BaseModel):
+    force_update: bool
+    update_available: bool = False
+    latest_version: Optional[str] = None
+    message: Optional[str] = None

@@ -3116,3 +3116,71 @@ async def get_all_driver_locations():
     locations = execute_query(query, fetch_all=True)
     return locations or []
 
+# =====================================================
+# APP VERSIONING
+# =====================================================
+
+def compare_versions(v1: str, v2: str) -> bool:
+    """Returns True if v1 >= v2 (using semantic versioning logic)"""
+    try:
+        parts1 = [int(x) for x in v1.split('.')]
+        parts2 = [int(x) for x in v2.split('.')]
+        # Pad with zeros to handle different lengths
+        length = max(len(parts1), len(parts2))
+        parts1.extend([0] * (length - len(parts1)))
+        parts2.extend([0] * (length - len(parts2)))
+        return parts1 >= parts2
+    except (ValueError, AttributeError):
+        return False
+
+@router.post("/check-app-version", response_model=AppVersionCheckResponse, tags=["Mobile App Versioning"])
+async def check_app_version(request: AppVersionCheckRequest):
+    """
+    Check if the mobile app needs an update.
+    Logic:
+    - If current < minimum -> Force update
+    - If current < latest -> Optional update
+    - Otherwise -> Up to date
+    """
+    try:
+        query = "SELECT * FROM app_versions WHERE app_type = %s AND platform = %s"
+        version_info = execute_query(query, (request.app_type.value, request.platform.value), fetch_one=True)
+        
+        if not version_info:
+            # If no version info found for this type/platform, assume it's okay
+            return AppVersionCheckResponse(force_update=False, update_available=False)
+            
+        current_v = request.app_version
+        min_v = version_info['minimum_supported_version']
+        latest_v = version_info['latest_version']
+        
+        # 1. Check for Force Update (Current < Minimum)
+        if not compare_versions(current_v, min_v):
+            return AppVersionCheckResponse(
+                force_update=True,
+                update_available=True,
+                latest_version=latest_v,
+                message=version_info.get('update_message') or "Please update the app to continue using the service."
+            )
+            
+        # 2. Check for Optional Update (Current < Latest)
+        if not compare_versions(current_v, latest_v):
+            return AppVersionCheckResponse(
+                force_update=False,
+                update_available=True,
+                latest_version=latest_v,
+                message=version_info.get('update_message') or "A new version of the app is available."
+            )
+            
+        # 3. Up to date
+        return AppVersionCheckResponse(
+            force_update=False, 
+            update_available=False
+        )
+        
+    except Exception as e:
+        import traceback
+        logger.error(f"Error checking app version: {e}")
+        logger.error(traceback.format_exc())
+        raise HTTPException(status_code=500, detail=f"Failed to check app version: {str(e)}")
+
