@@ -38,6 +38,80 @@ async def logout(fcm_token: Optional[str] = Body(None, embed=True)):
         logger.info(f"FCM token removed during logout: {fcm_token}")
     return {"message": "Logged out successfully and FCM token removed"}
 
+@router.post("/auth/login-requests/{request_id}/respond", tags=["Authentication"])
+async def respond_to_login_request(request_id: str, response_data: dict = Body(...)):
+    """
+    Old device responds (Approve/Reject) to a login request from a new device.
+    Response data: {"action": "APPROVE" or "REJECT"}
+    """
+    action = response_data.get("action")
+    if action not in ["APPROVE", "REJECT"]:
+        raise HTTPException(status_code=400, detail="Invalid action. Use APPROVE or REJECT.")
+
+    # 1. Fetch request details
+    req = execute_query("SELECT * FROM login_requests WHERE request_id = %s AND status = 'PENDING'", (request_id,), fetch_one=True)
+    if not req:
+        raise HTTPException(status_code=404, detail="Pending login request not found or already processed")
+
+    user_id = req['user_id']
+    user_type = req['user_type']
+    new_token = req['new_fcm_token']
+
+    if action == "REJECT":
+        execute_query("UPDATE login_requests SET status = 'REJECTED' WHERE request_id = %s", (request_id,))
+        # Optional: Notify new device that it was rejected
+        await notification_service.send_to_device(
+            title="Login Denied",
+            body="Your login request was denied by your other device.",
+            token=new_token,
+            recipient_type=user_type,
+            message_type="text"
+        )
+        return {"message": "Login request rejected"}
+
+    # action == "APPROVE"
+    execute_query("UPDATE login_requests SET status = 'APPROVED' WHERE request_id = %s", (request_id,))
+
+    # 2. Get OLD token to notify logout
+    old_token = None
+    if user_type == 'parent':
+        result = execute_query("SELECT fcm_token FROM fcm_tokens WHERE parent_id = %s", (user_id,), fetch_one=True)
+        old_token = result['fcm_token'] if result else None
+        
+        # Swap token for parent
+        execute_query("DELETE FROM fcm_tokens WHERE parent_id = %s", (user_id,))
+        execute_query("INSERT INTO fcm_tokens (fcm_id, fcm_token, parent_id) VALUES (%s, %s, %s)", 
+                      (str(uuid.uuid4()), new_token, user_id))
+    else: # driver
+        result = execute_query("SELECT fcm_token FROM drivers WHERE driver_id = %s", (user_id,), fetch_one=True)
+        old_token = result['fcm_token'] if result else None
+        
+        # Swap token for driver
+        execute_query("UPDATE drivers SET fcm_token = %s WHERE driver_id = %s", (new_token, user_id))
+
+    # 3. Notify OLD device to force logout
+    if old_token:
+        await notification_service.send_force_logout(old_token)
+
+    # 4. Notify NEW device of success
+    await notification_service.send_to_device(
+        title="Login Approved",
+        body="Your login has been approved. You can now use the app on this device.",
+        token=new_token,
+        recipient_type=user_type,
+        message_type="text"
+    )
+
+    return {"message": "Login request approved, tokens swapped"}
+
+@router.get("/auth/login-requests/{request_id}", tags=["Authentication"])
+async def get_login_request_status(request_id: str):
+    """Check the status of a pending login request"""
+    req = execute_query("SELECT status, user_id FROM login_requests WHERE request_id = %s", (request_id,), fetch_one=True)
+    if not req:
+        raise HTTPException(status_code=404, detail="Request not found")
+    return req
+
 
 @router.get("/auth/admin/profile/phone/{phone}", tags=["Authentication"], response_model=AdminResponse)
 async def get_admin_profile_by_phone(phone: int):
@@ -529,9 +603,10 @@ async def get_parent_students(parent_id: str):
 
 @router.put("/parents/{parent_id}/fcm-token", tags=["Parents"])
 async def update_parent_fcm_token(parent_id: str, fcm_data: dict):
-    """Update FCM token for parent with Force Logout for single device login"""
+    """Update FCM token for parent with Authorization request for multi-device login"""
     try:
         fcm_token = fcm_data.get("fcm_token")
+        device_info = fcm_data.get("device_info", "New Device")
         if not fcm_token:
             raise HTTPException(status_code=400, detail="fcm_token is required")
         
@@ -540,24 +615,32 @@ async def update_parent_fcm_token(parent_id: str, fcm_data: dict):
         if not parent:
             raise HTTPException(status_code=404, detail="Parent not found")
         
-        # Force Logout Logic
+        # Check for existing ACTIVE token
         old_token_query = "SELECT fcm_token FROM fcm_tokens WHERE parent_id = %s"
         old_token_data = execute_query(old_token_query, (parent_id,), fetch_one=True)
         
         if old_token_data and old_token_data['fcm_token'] != fcm_token:
-            logger.info(f"Multi-device login for parent {parent_id}. Force logging out old device.")
-            await notification_service.send_force_logout(old_token_data['fcm_token'])
-            await notification_service.send_to_device(
-                title="Login Successful",
-                body="You have successfully logged in on this device. Your previous sessions have been logged out.",
-                token=fcm_token,
-                recipient_type="parent",
-                message_type="text"
+            logger.info(f"Multi-device login for parent {parent_id}. Asking for permission from old device.")
+            
+            # 1. Generate Request ID
+            request_id = str(uuid.uuid4())
+            
+            # 2. Store Pending Request
+            execute_query(
+                "INSERT INTO login_requests (request_id, user_id, user_type, new_fcm_token) VALUES (%s, %s, %s, %s)",
+                (request_id, parent_id, 'parent', fcm_token)
             )
-            # Delete old record to satisfy UNIQUE constraint if token is different
-            execute_query("DELETE FROM fcm_tokens WHERE parent_id = %s", (parent_id,))
-        
-        # Update or insert FCM token
+            
+            # 3. Send Permission Request to OLD token
+            await notification_service.send_login_request(old_token_data['fcm_token'], request_id, device_info)
+            
+            return {
+                "status": "PENDING_APPROVAL",
+                "message": "A login request has been sent to your other device. Please approve it to continue.",
+                "request_id": request_id
+            }
+
+        # No conflict - Update or insert FCM token immediately
         query = """
         INSERT INTO fcm_tokens (fcm_id, fcm_token, parent_id) 
         VALUES (%s, %s, %s)
@@ -569,7 +652,7 @@ async def update_parent_fcm_token(parent_id: str, fcm_data: dict):
         execute_query(query, (fcm_id, fcm_token, parent_id))
         
         return {
-            "message": "FCM token updated successfully (Single Device Mode enforced)",
+            "message": "FCM token updated successfully",
             "parent_id": parent_id
         }
         
@@ -723,10 +806,11 @@ async def update_driver_status(driver_id: str, status_update: DriverStatusUpdate
         raise HTTPException(status_code=404, detail="Driver not found")
     return await get_driver(driver_id)
 
-@router.patch("/drivers/{driver_id}/fcm-token", response_model=DriverResponse, tags=["Drivers"])
+@router.patch("/drivers/{driver_id}/fcm-token", tags=["Drivers"])
 async def patch_driver_fcm_token(driver_id: str, fcm_data: dict):
-    """PATCH: Update driver FCM token with Force Logout for single device login"""
+    """PATCH: Update driver FCM token with Authorization request for multi-device"""
     fcm_token = fcm_data.get("fcm_token")
+    device_info = fcm_data.get("device_info", "New Device")
     if not fcm_token:
         raise HTTPException(status_code=400, detail="fcm_token is required")
     
@@ -736,20 +820,27 @@ async def patch_driver_fcm_token(driver_id: str, fcm_data: dict):
         raise HTTPException(status_code=404, detail="Driver not found")
          
     if old_driver['fcm_token'] and old_driver['fcm_token'] != fcm_token:
-        logger.info(f"Multi-device login detected for driver: {driver_id}. Force logging out old device.")
-        # 1. Notify old device
-        await notification_service.send_force_logout(old_driver['fcm_token'])
+        logger.info(f"Multi-device login detected for driver: {driver_id}. Asking for permission from old device.")
         
-        # 2. Notify new device
-        await notification_service.send_to_device(
-            title="Login Successful",
-            body="You have successfully logged in on this device. Your previous sessions have been logged out for security.",
-            token=fcm_token,
-            recipient_type="driver",
-            message_type="text"
+        # 1. Generate Request ID
+        request_id = str(uuid.uuid4())
+        
+        # 2. Store Pending Request
+        execute_query(
+            "INSERT INTO login_requests (request_id, user_id, user_type, new_fcm_token) VALUES (%s, %s, %s, %s)",
+            (request_id, driver_id, 'driver', fcm_token)
         )
+        
+        # 3. Send Request to OLD token
+        await notification_service.send_login_request(old_driver['fcm_token'], request_id, device_info)
+        
+        return {
+            "status": "PENDING_APPROVAL",
+            "message": "A login request has been sent to your other device. Please approve it to continue.",
+            "request_id": request_id
+        }
 
-    # 3. Update to new token
+    # No multi-device conflict, update immediately
     query = "UPDATE drivers SET fcm_token = %s, updated_at = CURRENT_TIMESTAMP WHERE driver_id = %s"
     execute_query(query, (fcm_token, driver_id))
     
@@ -2584,11 +2675,12 @@ async def get_student_count_by_route(route_id: str):
 
 @router.post("/fcm-tokens", response_model=FCMTokenResponse, tags=["FCM Tokens"])
 async def create_fcm_token(fcm_token: FCMTokenCreate):
-    """Create or update FCM token with Force Logout for single device login"""
+    """Create or update FCM token with authorization request for multi-device"""
     try:
         fcm_id = str(uuid.uuid4())
+        device_info = "New Device" # Default
         
-        # Logic for Parent Single Device Login (Force Logout)
+        # Logic for Parent Single Device Login (Ask Permission)
         if fcm_token.parent_id:
             # Check if parent already has an FCM token
             old_token_query = "SELECT fcm_token FROM fcm_tokens WHERE parent_id = %s"
@@ -2596,37 +2688,44 @@ async def create_fcm_token(fcm_token: FCMTokenCreate):
             
             # If old token exists and is different from the new one
             if old_token_data and old_token_data['fcm_token'] != fcm_token.fcm_token:
-                logger.info(f"Multi-device login detected. Force logging out old device for parent: {fcm_token.parent_id}")
+                logger.info(f"Multi-device login for parent {fcm_token.parent_id}. Asking permission from old device.")
                 
-                # 1. Send FCM notification to OLD token with logout command
-                await notification_service.send_force_logout(old_token_data['fcm_token'])
+                # 1. Generate Request ID
+                request_id = str(uuid.uuid4())
                 
-                # 2. ALSO notify the NEW device that it has taken over
-                await notification_service.send_to_device(
-                    title="Login Successful",
-                    body="You have successfully logged in on this device. Your previous sessions have been logged out for security.",
-                    token=fcm_token.fcm_token,
-                    recipient_type="parent",
-                    message_type="text"
+                # 2. Store Pending Request
+                execute_query(
+                    "INSERT INTO login_requests (request_id, user_id, user_type, new_fcm_token) VALUES (%s, %s, %s, %s)",
+                    (request_id, fcm_token.parent_id, 'parent', fcm_token.fcm_token)
                 )
                 
-                # 3. Delete old token from database to maintain single device rule
-                delete_query = "DELETE FROM fcm_tokens WHERE parent_id = %s"
-                execute_query(delete_query, (fcm_token.parent_id,))
+                # 3. Send Request to OLD token
+                await notification_service.send_login_request(old_token_data['fcm_token'], request_id, device_info)
+                
+                # Return the pending status
+                return {
+                    "fcm_id": request_id, # Reusing ID field for request tracking
+                    "fcm_token": fcm_token.fcm_token,
+                    "parent_id": fcm_token.parent_id,
+                    "student_id": fcm_token.student_id
+                }
 
-        # 4. Save/Update new token
+        # No conflict or student registration - process immediately
         query = """
-        INSERT INTO fcm_tokens (fcm_id, fcm_token, student_id, parent_id)
+        INSERT INTO fcm_tokens (fcm_id, fcm_token, student_id, parent_id) 
         VALUES (%s, %s, %s, %s)
-        ON DUPLICATE KEY UPDATE
-        student_id = VALUES(student_id),
-        parent_id = VALUES(parent_id),
+        ON DUPLICATE KEY UPDATE 
+        fcm_token = VALUES(fcm_token),
         updated_at = CURRENT_TIMESTAMP
         """
         execute_query(query, (fcm_id, fcm_token.fcm_token, fcm_token.student_id, fcm_token.parent_id))
         
-        final_token = execute_query("SELECT fcm_id FROM fcm_tokens WHERE fcm_token = %s", (fcm_token.fcm_token,), fetch_one=True)
-        return await get_fcm_token(final_token['fcm_id'])
+        return {
+            "fcm_id": fcm_id,
+            "fcm_token": fcm_token.fcm_token,
+            "student_id": fcm_token.student_id,
+            "parent_id": fcm_token.parent_id
+        }
     except Exception as e:
         logger.error(f"Create FCM token error: {e}")
         raise HTTPException(status_code=400, detail=f"Failed to create FCM token: {str(e)}")

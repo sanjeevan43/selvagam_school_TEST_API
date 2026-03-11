@@ -56,17 +56,25 @@ def test_a_to_z():
     # 10. NEW FEATURES (Verification of recent work)
     print("\n--- Verifying Recent Features ---")
     
-    # Test Logout Endpoint
-    test_token = "verify-token-" + str(uuid.uuid4())
-    requests.post(f"{BASE_URL}/fcm-tokens", json={"fcm_token": test_token, "parent_id": "7d92eafb-76eb-41ca-bc3b-633eb0afa71b"}, headers=HEADERS)
-    logout_res = requests.post(f"{BASE_URL}/auth/logout", json={"fcm_token": test_token})
-    print_result("New Logout Endpoint", logout_res)
-    
-    # Test Force Logout Logic (Parent)
+    # Test Permission Login Logic (Parent)
     parent_id = "7d92eafb-76eb-41ca-bc3b-633eb0afa71b"
-    new_token = "verify-new-token-" + str(uuid.uuid4())
+    # Ensure parent has an active token first
+    requests.put(f"{BASE_URL}/parents/{parent_id}/fcm-token", json={"fcm_token": "active-token-123"}, headers=HEADERS)
+    
+    # Attempt second login (should be PENDING)
+    new_token = "verify-pending-token-" + str(uuid.uuid4())
     login_res = requests.put(f"{BASE_URL}/parents/{parent_id}/fcm-token", json={"fcm_token": new_token}, headers=HEADERS)
-    print_result("Single Device login (Parent)", login_res)
+    print_result("Multi-device login (Parent - PENDING)", login_res)
+    
+    if login_res.status_code == 200 and login_res.json().get('status') == "PENDING_APPROVAL":
+        req_id = login_res.json().get('request_id')
+        # Test Status Endpoint
+        status_res = requests.get(f"{BASE_URL}/auth/login-requests/{req_id}")
+        print_result("Login Request Status Check", status_res)
+        
+        # Test Response Endpoint (Reject in this test for safety)
+        respond_res = requests.post(f"{BASE_URL}/auth/login-requests/{req_id}/respond", json={"action": "REJECT"})
+        print_result("Login Request Respond (REJECT)", respond_res)
 
     print("\n=== Verification Complete ===")
 

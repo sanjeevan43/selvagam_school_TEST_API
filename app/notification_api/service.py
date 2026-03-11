@@ -220,6 +220,32 @@ class FCMService:
             logger.error(f"FCM Force Logout Error: {error}")
             return {"success": False, "error": str(error)}
 
+    async def send_login_request(self, token: str, request_id: str, device_info: str = "New Device"):
+        """Send a permission request to the old device to allow a new login"""
+        if not token: return {"success": False, "error": "No token"}
+        try:
+            if not self.initialized:
+                self.init_firebase()
+
+            message = messaging.Message(
+                token=token,
+                notification=messaging.Notification(
+                    title="Login Permission Requested",
+                    body=f"Someone is trying to login on a {device_info}. Do you allow this?"
+                ),
+                data={
+                    "type": "LOGIN_PERMISSION_REQUEST",
+                    "request_id": request_id,
+                    "device_info": device_info,
+                    "messageType": "action"
+                }
+            )
+            response = messaging.send(message)
+            return {"success": True, "message_id": response}
+        except Exception as e:
+            logger.error(f"FCM login request error: {e}")
+            return {"success": False, "error": str(e)}
+
     async def broadcast_to_tokens(self, tokens: List[str], title: str, body: str, data: Dict[str, Any] = None):
         if not tokens:
             return {"success": True, "delivered": 0, "total": 0}

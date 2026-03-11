@@ -4,19 +4,15 @@ This document explains how to use the notification system to send messages to Pa
 
 ---
 
-## 🔐 Authentication
-Most notification endpoints require the following header for security:
+### 🔐 Authentication & Session Security
+These notifications are triggered when users log in or out to ensure secure access.
 
-| Header Key | Value |
-| :--- | :--- |
-| `x-admin-key` | `selvagam-admin-key-2024` |
-
-*Note: Some endpoints use standard JWT Bearer tokens.*
-
----
-
-## 📡 Status Check
-Before sending notifications, check if the service is online and the Firebase credentials are correctly loaded.
+| Title | Message Body | Trigger |
+| :--- | :--- | :--- |
+| **Login Permission Requested** | "Someone is trying to login on a {Device Name}. Do you allow this?" | Sent to the **old device** when a new login attempt occurs. Contains `request_id`. |
+| **Session Expired** | "You have been logged in on another device" | Sent to an **old device** AFTER a login request is approved. |
+| **Login Approved** | "Your login has been approved. You can now use the app on this device." | Sent to the **new device** once the old device approves the request. |
+| **Login Denied** | "Your login request was denied by your other device." | Sent to the **new device** if the old device rejects the request. |
 
 **Endpoint:** `GET /api/v1/notifications/status`
 
