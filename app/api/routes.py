@@ -370,6 +370,13 @@ async def get_notifications_by_parent(parent_id: str):
     notifications = execute_query(query, (parent_id, parent_id), fetch_all=True)
     return notifications or []
 
+@router.get("/admin-parent-notifications", response_model=List[AdminParentNotificationResponse], tags=["Admin Parent Notifications"])
+async def get_all_admin_parent_notifications(limit: int = 50, offset: int = 0):
+    """Retrieve all notification records sent by admins (paginated)"""
+    query = "SELECT * FROM admin_parent_notifications ORDER BY created_at DESC LIMIT %s OFFSET %s"
+    notifications = execute_query(query, (limit, offset), fetch_all=True)
+    return notifications or []
+
 @router.get("/admin-parent-notifications/admin/{admin_id}", response_model=List[AdminParentNotificationResponse], tags=["Admin Parent Notifications"])
 async def get_notifications_by_admin(admin_id: str):
     """Show all notifications a specific administrator has sent"""
