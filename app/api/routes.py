@@ -6,6 +6,7 @@ import uuid
 import logging
 import json
 import re
+import asyncio
 
 from app.core.database import get_db, execute_query
 from app.api.models import *
@@ -333,6 +334,15 @@ async def reset_admin_default_password(admin_id: str):
 # =====================================================
 # ADMIN PARENT NOTIFICATION ENDPOINTS (Tracking History)
 # =====================================================
+
+@router.get("/admin-parent-notifications/{notification_id}", response_model=AdminParentNotificationResponse, tags=["Admin Parent Notifications"])
+async def get_admin_parent_notification(notification_id: str):
+    """Retrieve a specific notification record by its unique ID"""
+    query = "SELECT * FROM admin_parent_notifications WHERE notification_id = %s"
+    notification = execute_query(query, (notification_id,), fetch_one=True)
+    if not notification:
+        raise HTTPException(status_code=404, detail="Notification record not found")
+    return notification
 
 @router.post("/admin-parent-notifications", response_model=AdminParentNotificationResponse, tags=["Admin Parent Notifications"])
 async def create_admin_parent_notification(notification: AdminParentNotificationCreate):
