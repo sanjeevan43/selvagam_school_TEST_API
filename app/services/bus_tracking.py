@@ -101,13 +101,25 @@ class BusTrackingService:
     async def update_bus_location(self, trip_id: str, latitude: float, longitude: float):
         """Automatic bus tracking - handle stop progression and trip completion"""
         try:
+            # Update driver_live_locations table (current location store)
+            # This uses the specific table the user requested
+            update_live_query = """
+            INSERT INTO driver_live_locations (driver_id, latitude, longitude, updated_at)
+            SELECT driver_id, %s, %s, CURRENT_TIMESTAMP FROM trips WHERE trip_id = %s
+            ON DUPLICATE KEY UPDATE 
+                latitude = VALUES(latitude),
+                longitude = VALUES(longitude),
+                updated_at = CURRENT_TIMESTAMP
+            """
+            execute_query(update_live_query, (latitude, longitude, trip_id))
+
             # Get trip details
             trip_query = """
             SELECT t.*, r.name as route_name, b.registration_number
             FROM trips t
             JOIN routes r ON t.route_id = r.route_id
             JOIN buses b ON t.bus_id = b.bus_id
-            WHERE t.trip_id = %s AND t.status = 'ONGOING'
+            WHERE t.trip_id = %s AND t.status IN ('ONGOING', 'NOT_STARTED')
             """
             trip = execute_query(trip_query, (trip_id,), fetch_one=True)
             

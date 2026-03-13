@@ -3266,7 +3266,7 @@ async def update_driver_location(driver_id: str, location: DriverLocationUpdate)
         if not execute_query(driver_check, (driver_id,), fetch_one=True):
             raise HTTPException(status_code=404, detail="Driver not found")
 
-        # Update or Insert live location
+        # Update driver_live_locations table
         query = """
         INSERT INTO driver_live_locations (driver_id, latitude, longitude, updated_at)
         VALUES (%s, %s, %s, CURRENT_TIMESTAMP)
