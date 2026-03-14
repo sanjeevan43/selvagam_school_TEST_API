@@ -3350,19 +3350,30 @@ async def get_buses_by_route(route_id: str):
 async def get_dashboard_summary():
     """Get counts of all main entities for dashboard"""
     try:
-        counts = {}
-        counts["admins"] = execute_query("SELECT COUNT(*) as count FROM admins", fetch_one=True)["count"]
-        counts["parents"] = execute_query("SELECT COUNT(*) as count FROM parents", fetch_one=True)["count"]
-        counts["drivers"] = execute_query("SELECT COUNT(*) as count FROM drivers", fetch_one=True)["count"]
-        counts["buses"] = execute_query("SELECT COUNT(*) as count FROM buses", fetch_one=True)["count"]
-        counts["routes"] = execute_query("SELECT COUNT(*) as count FROM routes", fetch_one=True)["count"]
-        counts["students"] = execute_query("SELECT COUNT(*) as count FROM students", fetch_one=True)["count"]
-        counts["ongoing_trips"] = execute_query("SELECT COUNT(*) as count FROM trips WHERE status = 'ONGOING'", fetch_one=True)["count"]
+        query = """
+        SELECT 
+            (SELECT COUNT(*) FROM admins) as admins,
+            (SELECT COUNT(*) FROM parents) as parents,
+            (SELECT COUNT(*) FROM drivers) as drivers,
+            (SELECT COUNT(*) FROM buses) as buses,
+            (SELECT COUNT(*) FROM routes) as routes,
+            (SELECT COUNT(*) FROM students) as students,
+            (SELECT COUNT(*) FROM trips WHERE status = 'ONGOING') as ongoing_trips
+        """
+        counts_res = execute_query(query, fetch_one=True)
+        counts = {
+            "admins": counts_res["admins"],
+            "parents": counts_res["parents"],
+            "drivers": counts_res["drivers"],
+            "buses": counts_res["buses"],
+            "routes": counts_res["routes"],
+            "students": counts_res["students"],
+            "ongoing_trips": counts_res["ongoing_trips"]
+        }
         return counts
     except Exception as e:
         logger.error(f"Summary error: {e}")
         raise HTTPException(status_code=500, detail="Failed to get summary")
-
 # =====================================================
 # DRIVER LIVE LOCATION ENDPOINTS
 # =====================================================
