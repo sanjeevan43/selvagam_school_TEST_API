@@ -107,8 +107,7 @@ class FCMService:
                     'body': body,
                     'messageType': message_type,
                     'timestamp': str(int(time.time() * 1000)),
-                    'source': 'admin_panel',
-                    'click_action': 'FLUTTER_NOTIFICATION_CLICK'
+                    'source': 'admin_panel'
                 },
                 android=messaging.AndroidConfig(
                     priority='high',
@@ -190,8 +189,9 @@ class FCMService:
             logger.info(f"FCM: Sent to device {token[:10]}... | ID: {response}")
             return {"success": True, "messageId": response}
         except Exception as error:
-            logger.error(f"FCM Device Send Error for token {token[:10]}...: {error}")
-            return {"success": False, "error": str(error)}
+            err_msg = str(error)
+            logger.error(f"FCM Device Send Error for token {token[:10]}...: {err_msg}")
+            return {"success": False, "error": err_msg}
 
     async def send_force_logout(self, token: str):
         if not token: return {"success": False, "error": "No token"}

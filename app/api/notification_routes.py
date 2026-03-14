@@ -255,11 +255,13 @@ async def broadcast_parents(
     results = await asyncio.gather(*tasks)
     
     success_count = sum(1 for r in results if r.get("success"))
+    failure_reasons = [r.get("error") for r in results if not r.get("success")]
     
     return {
         "success": True, 
         "delivered_count": success_count, 
         "total_tokens": len(all_tokens), 
+        "failure_reasons": failure_reasons[:10], # Show first 10 errors
         "message": f"Broadcast sent to {success_count} parents",
         "notification_id": notification_id
     }
@@ -299,7 +301,15 @@ async def send_student_notification(
     results = await asyncio.gather(*tasks)
     
     success_count = sum(1 for r in results if r.get("success"))
-    return {"success": True, "delivered_count": success_count, "total_tokens": len(unique_tokens), "notification_id": notification_id}
+    failure_reasons = [r.get("error") for r in results if not r.get("success")]
+    
+    return {
+        "success": True, 
+        "delivered_count": success_count, 
+        "total_tokens": len(unique_tokens), 
+        "failure_reasons": failure_reasons,
+        "notification_id": notification_id
+    }
 
 @router.post("/notifications/parent/{parent_id}", tags=["Notifications"])
 async def send_parent_notification(
@@ -336,7 +346,15 @@ async def send_parent_notification(
     results = await asyncio.gather(*tasks)
     
     success_count = sum(1 for r in results if r.get("success"))
-    return {"success": True, "delivered_count": success_count, "total_tokens": len(unique_tokens), "notification_id": notification_id}
+    failure_reasons = [r.get("error") for r in results if not r.get("success")]
+    
+    return {
+        "success": True, 
+        "delivered_count": success_count, 
+        "total_tokens": len(unique_tokens), 
+        "failure_reasons": failure_reasons,
+        "notification_id": notification_id
+    }
 
 @router.post("/notifications/route/{route_id}", tags=["Notifications"])
 async def send_route_notification(
