@@ -154,7 +154,6 @@ class FCMService:
                 'title': str(title),
                 'body': str(body),
                 'messageType': str(message_type),
-                'message_type': str(message_type), # Fallback for different naming conventions
                 'timestamp': str(int(time.time() * 1000)),
                 'source': str(data.get('source', 'admin_panel')) if data and 'source' in data else 'admin_panel',
             }
