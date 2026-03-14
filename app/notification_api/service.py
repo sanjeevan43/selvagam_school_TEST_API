@@ -87,7 +87,7 @@ class FCMService:
         # Default to sound for almost everything unless explicitly silent
         is_silent = message_type in ["silent", "background", "data_only"]
         sound = "default" if not is_silent else None
-        channel_id = "high_importance_channel" if not is_silent else "default_channel"
+        channel_id = "voice_notification_channel" if not is_silent else "default_channel"
         return sound, channel_id
 
     async def send_to_topic(self, title: str, body: str, topic: str = 'all_users', message_type: str = 'audio'):
