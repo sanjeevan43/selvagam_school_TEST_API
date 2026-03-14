@@ -171,7 +171,7 @@ class BusTrackingService:
                         if students:
                             title = "🚌 Bus Nearby"
                             body = f"The bus is approaching {first_stop['stop_name']}. Please be ready."
-                            await self._broadcast_helper(students, title, body, {"trip_id": trip_id, "stop_name": first_stop['stop_name'], "status": "UPCOMING"})
+                            await self._broadcast_helper(students, title, body, {"trip_id": trip_id, "stop_name": first_stop['stop_name'], "status": "UPCOMING"}, message_type="audio")
                             # Log in history
                             try:
                                 execute_query(
@@ -250,7 +250,7 @@ class BusTrackingService:
                     if students_arrived:
                         title = "🚌 Bus Arrived"
                         message = f"The bus has arrived at {current_stop_name}."
-                        await self._broadcast_helper(students_arrived, title, message, {"trip_id": trip_id, "stop_name": current_stop_name, "status": "ARRIVED"})
+                        await self._broadcast_helper(students_arrived, title, message, {"trip_id": trip_id, "stop_name": current_stop_name, "status": "ARRIVED"}, message_type="audio")
                         # Log in history
                         try:
                             execute_query(
@@ -267,7 +267,7 @@ class BusTrackingService:
                             next_stop_name = next_stop['stop_name']
                             title = "🚌 Bus Approaching"
                             message = f"The bus has reached {current_stop_name} and will arrive at {next_stop_name} soon."
-                            await self._broadcast_helper(students_approaching, title, message, {"trip_id": trip_id, "stop_name": next_stop_name, "status": "APPROACHING"})
+                            await self._broadcast_helper(students_approaching, title, message, {"trip_id": trip_id, "stop_name": next_stop_name, "status": "APPROACHING"}, message_type="audio")
                             # Log in history (Next stop location)
                             try:
                                 execute_query(
@@ -285,7 +285,7 @@ class BusTrackingService:
                                 future_stop_name = future_stop['stop_name']
                                 title = "🚌 Bus Nearby"
                                 message = f"The bus is approaching {future_stop_name}. Please be ready."
-                                await self._broadcast_helper(students_nearby, title, message, {"trip_id": trip_id, "stop_name": future_stop_name, "status": "UPCOMING"})
+                                await self._broadcast_helper(students_nearby, title, message, {"trip_id": trip_id, "stop_name": future_stop_name, "status": "UPCOMING"}, message_type="audio")
                                 # Log in history (Future stop location)
                                 try:
                                     execute_query(
@@ -309,12 +309,12 @@ class BusTrackingService:
             logger.error(f"Bus location processing error: {e}")
             return {"success": False, "error": str(e)}
 
-    async def _broadcast_helper(self, students: List[Dict], title: str, body: str, data: Dict):
+    async def _broadcast_helper(self, students: List[Dict], title: str, body: str, data: Dict, message_type: str = "audio"):
         """Helper to broadcast notifications asynchronously"""
         student_ids = [st['student_id'] for st in students]
         tokens = self.get_parent_tokens_for_students(student_ids)
         if tokens:
-            await notification_service.broadcast_to_tokens(list(set(tokens)), title, body, data)
+            await notification_service.broadcast_to_tokens(list(set(tokens)), title, body, data, message_type=message_type)
 
     async def skip_specific_stop(self, trip_id: str, stop_order: int):
         """Mark a specific stop_order as skipped for the current trip"""

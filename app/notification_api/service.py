@@ -148,15 +148,15 @@ class FCMService:
 
             sound, channel_id = self._get_sound_config(message_type)
 
-            # Build data payload
+            # Build data payload for Flutter compatibility
             fcm_data = {
-                'type': 'admin_notification',
-                'title': title,
-                'body': body,
-                'messageType': message_type,
+                'type': str(data.get('type', 'admin_notification')) if data and 'type' in data else 'admin_notification',
+                'title': str(title),
+                'body': str(body),
+                'messageType': str(message_type),
+                'message_type': str(message_type), # Fallback for different naming conventions
                 'timestamp': str(int(time.time() * 1000)),
-                'source': 'admin_panel',
-                'click_action': 'FLUTTER_NOTIFICATION_CLICK'
+                'source': str(data.get('source', 'admin_panel')) if data and 'source' in data else 'admin_panel',
             }
             
             # Merge custom data
@@ -246,12 +246,12 @@ class FCMService:
             logger.error(f"FCM login request error: {e}")
             return {"success": False, "error": str(e)}
 
-    async def broadcast_to_tokens(self, tokens: List[str], title: str, body: str, data: Dict[str, Any] = None):
+    async def broadcast_to_tokens(self, tokens: List[str], title: str, body: str, data: Dict[str, Any] = None, message_type: str = "audio"):
         if not tokens:
             return {"success": True, "delivered": 0, "total": 0}
             
         tasks = [
-            self.send_to_device(title, body, token, data=data)
+            self.send_to_device(title, body, token, data=data, message_type=message_type)
             for token in set(tokens) if token
         ]
         
