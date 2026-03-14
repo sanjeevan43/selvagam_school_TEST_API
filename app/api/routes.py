@@ -796,7 +796,12 @@ async def update_parent_fcm_token(parent_id: str, fcm_data: dict):
             )
             
             # 3. Send Permission Request to OLD token
-            await notification_service.send_login_request(old_token_data['fcm_token'], request_id, device_info)
+            try:
+                await notification_service.send_login_request(old_token_data['fcm_token'], request_id, device_info)
+            except Exception as notify_err:
+                logger.warning(f"Failed to send security notification to old device: {notify_err}")
+                # We still return PENDING_APPROVAL because the request is stored and the security flow is active
+                # The user will have to manually approve or we handle the timeout
             
             return {
                 "status": "PENDING_APPROVAL",
@@ -823,8 +828,10 @@ async def update_parent_fcm_token(parent_id: str, fcm_data: dict):
     except HTTPException:
         raise
     except Exception as e:
+        import traceback
         logger.error(f"Update parent FCM token error: {e}")
-        raise HTTPException(status_code=500, detail="Failed to update FCM token")
+        logger.error(traceback.format_exc())
+        raise HTTPException(status_code=500, detail=f"Failed to update FCM token: {str(e)}")
 
 @router.patch("/parents/{parent_id}/fcm-token", tags=["Parents"])
 async def patch_parent_fcm_token(parent_id: str, fcm_data: dict):
@@ -996,7 +1003,10 @@ async def patch_driver_fcm_token(driver_id: str, fcm_data: dict):
         )
         
         # 3. Send Request to OLD token
-        await notification_service.send_login_request(old_driver['fcm_token'], request_id, device_info)
+        try:
+            await notification_service.send_login_request(old_driver['fcm_token'], request_id, device_info)
+        except Exception as notify_err:
+            logger.warning(f"Failed to send security notification to old driver device: {notify_err}")
         
         return {
             "status": "PENDING_APPROVAL",
@@ -1636,6 +1646,9 @@ async def assign_bus_driver(bus_id: str, assignment: BusDriverAssign):
     logger.info(f"Assigning driver {assignment.driver_id} to bus {bus_id}")
     execute_query(query, (assignment.driver_id, bus_id))
     
+    # Cascade update: Reassign driver for any NOT_STARTED trips for this bus
+    cascade_service.update_bus_reassignment_cascades(bus_id, driver_id=assignment.driver_id)
+    
     return await get_bus(bus_id)
 
 @router.patch("/buses/{bus_id}/route", response_model=BusResponse, tags=["Buses"])
@@ -1649,6 +1662,10 @@ async def patch_bus_route(bus_id: str, route_data: dict):
     result = execute_query(query, (route_id, bus_id))
     if result == 0:
         raise HTTPException(status_code=404, detail="Bus not found")
+        
+    # Cascade update: Reassign route for any NOT_STARTED trips for this bus
+    cascade_service.update_bus_reassignment_cascades(bus_id, route_id=route_id)
+    
     return await get_bus(bus_id)
 
 @router.patch("/buses/{bus_id}/documents", response_model=BusResponse, tags=["Buses"])

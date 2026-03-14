@@ -94,6 +94,28 @@ class CascadeUpdateService:
         except Exception as e:
             logger.error(f"Bus cascade update error: {e}")
             return False
+
+    def update_bus_reassignment_cascades(self, bus_id: str, driver_id: str = None, route_id: str = None):
+        """Update upcoming trips when bus driver or route is reassigned"""
+        try:
+            updates = []
+            params = []
+            if driver_id:
+                updates.append("driver_id = %s")
+                params.append(driver_id)
+            if route_id:
+                updates.append("route_id = %s")
+                params.append(route_id)
+            
+            if updates:
+                params.append(bus_id)
+                query = f"UPDATE trips SET {', '.join(updates)}, updated_at = CURRENT_TIMESTAMP WHERE bus_id = %s AND status = 'NOT_STARTED'"
+                execute_query(query, tuple(params))
+                logger.info(f"Updated NOT_STARTED trips for bus {bus_id} with new assignments")
+            return True
+        except Exception as e:
+            logger.error(f"Bus reassignment cascade error: {e}")
+            return False
     
     def update_route_stop_cascades(self, stop_id: str, old_data: Dict = None, new_data: Dict = None):
         """Update all tables related to route stop changes"""
